@@ -104,7 +104,7 @@ export default function NotificationDropdown() {
   );
 
   return (
-    <Dropdown dropdownRender={() => dropdownContent} trigger={['click']} placement="bottomRight">
+    <Dropdown popupRender={() => dropdownContent} trigger={['click']} placement="bottomRight">
       <Badge count={unreadCount} size="small" offset={[-2, 2]}>
         <Button type="text" icon={<BellOutlined style={{ fontSize: 20 }} />} />
       </Badge>

@@ -1,18 +1,19 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Card, 
-  Table, 
-  Tag, 
-  Button, 
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Card,
+  Table,
+  Tag,
+  Button,
   Space,
   Input,
   Select,
   message,
   Statistic,
   Row,
-  Col
-} from 'antd';
+  Col,
+  Spin,
+} from "antd";
 import {
   SearchOutlined,
   PlusOutlined,
@@ -21,173 +22,229 @@ import {
   CalendarOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  CloseCircleOutlined,
-} from '@ant-design/icons';
-import { mockBookings, type Booking } from '@/data/mockBookings';
+  EditOutlined,
+} from "@ant-design/icons";
 
-const dailyStats = {
-  total: mockBookings.length,
-  pending: mockBookings.filter(b => b.status === 'pending').length,
-  confirmed: mockBookings.filter(b => b.status === 'confirmed').length,
-  completed: mockBookings.filter(b => b.status === 'completed').length,
-};
+// IMPORT SERVICE
+import adminBookingService, { Booking } from "@/services/admin/bookingService";
 
 const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
+  }).format(value);
 };
 
 const getStatusTag = (status: string) => {
   const statusMap: Record<string, { color: string; text: string }> = {
-    pending: { color: 'gold', text: 'Chờ xác nhận' },
-    confirmed: { color: 'blue', text: 'Đã xác nhận' },
-    playing: { color: 'green', text: 'Đang chơi' },
-    completed: { color: 'default', text: 'Hoàn thành' },
-    cancelled: { color: 'red', text: 'Đã hủy' },
+    pending: { color: "gold", text: "Chờ xác nhận" },
+    confirmed: { color: "blue", text: "Đã xác nhận" },
+    playing: { color: "green", text: "Đang chơi" },
+    completed: { color: "default", text: "Hoàn thành" },
+    cancelled: { color: "red", text: "Đã hủy" },
   };
-  const { color, text } = statusMap[status] || { color: 'default', text: status };
+  const { color, text } = statusMap[status] || {
+    color: "default",
+    text: status,
+  };
   return <Tag color={color}>{text}</Tag>;
 };
 
 export default function BookingsManagement() {
   const navigate = useNavigate();
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleExport = () => {
-    message.success('Đã xuất báo cáo đặt sân!');
+  // 1. Lấy dữ liệu từ API
+  const fetchBookings = async () => {
+    try {
+      setLoading(true);
+      const response = await adminBookingService.getBookings();
+      // Laravel trả về { success: true, data: { data: [...] } } nếu dùng paginate
+      const result = response.data?.data || response.data || [];
+      setBookings(result);
+    } catch (error) {
+      message.error("Không thể tải danh sách đặt sân");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleConfirm = (id: string) => {
-    message.success(`Đã xác nhận đặt sân #${id}`);
-  };
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
-  const handleStart = (id: string) => {
-    message.success(`Đã bắt đầu sân #${id}`);
+  // 2. Tính toán thống kê từ dữ liệu thực tế
+  const stats = useMemo(() => {
+    return {
+      total: bookings.length,
+      pending: bookings.filter((b) => b.status === "pending").length,
+      confirmed: bookings.filter((b) => b.status === "confirmed").length,
+      completed: bookings.filter((b) => b.status === "completed").length,
+    };
+  }, [bookings]);
+
+  const handleUpdateStatus = async (id: number, status: string) => {
+    try {
+      await adminBookingService.updateStatus(id, status);
+      message.success("Cập nhật trạng thái thành công");
+      fetchBookings();
+    } catch (error) {
+      message.error("Lỗi khi cập nhật trạng thái");
+    }
   };
 
   const columns = [
-    { title: 'Mã đặt', dataIndex: 'id', key: 'id', width: 100 },
-    { 
-      title: 'Khách hàng', 
-      key: 'customer',
-      render: (_: unknown, record: Booking) => (
+    { title: "Mã", dataIndex: "id", key: "id", width: 70 },
+    {
+      title: "Khách hàng",
+      key: "customer",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (_: any, record: Booking) => (
         <div>
-          <div className="font-medium">{record.customerName}</div>
-          <div className="text-sm text-muted-foreground">{record.customerPhone}</div>
+          <div className="font-medium">{record.customer_name}</div>
+          <div className="text-xs text-muted-foreground">
+            {record.customer_phone}
+          </div>
         </div>
-      )
-    },
-    { title: 'Sân', dataIndex: 'fieldName', key: 'fieldName', ellipsis: true },
-    { title: 'Ngày', dataIndex: 'date', key: 'date' },
-    { title: 'Giờ', dataIndex: 'timeSlot', key: 'timeSlot' },
-    { 
-      title: 'Tổng tiền', 
-      dataIndex: 'totalAmount', 
-      key: 'totalAmount',
-      render: (value: number) => formatCurrency(value)
-    },
-    { 
-      title: 'Trạng thái', 
-      dataIndex: 'status', 
-      key: 'status',
-      render: (status: string) => getStatusTag(status)
+      ),
     },
     {
-      title: 'Thao tác',
-      key: 'actions',
-      render: (_: unknown, record: Booking) => (
+      title: "Sân",
+      key: "fieldName",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (_: any, record: Booking) =>
+        record.field?.name || `Sân #${record.field_id}`,
+    },
+    { title: "Ngày", dataIndex: "booking_date", key: "booking_date" },
+    {
+      title: "Giờ",
+      key: "timeSlot",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (_: any, record: Booking) =>
+        `${record.start_time} - ${record.end_time}`,
+    },
+    {
+      title: "Tổng tiền",
+      dataIndex: "total_amount",
+      key: "total_amount",
+      render: (value: number) => <strong>{formatCurrency(value)}</strong>,
+    },
+    {
+      title: "Trạng thái",
+      dataIndex: "status",
+      key: "status",
+      render: (status: string) => getStatusTag(status),
+    },
+    {
+      title: "Thao tác",
+      key: "actions",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (_: any, record: Booking) => (
         <Space>
-          <Button 
-            icon={<EyeOutlined />} 
+          <Button
+            icon={<EyeOutlined />}
             size="small"
             onClick={() => navigate(`/admin/bookings/${record.id}`)}
           />
-          {record.status === 'pending' && (
-            <Button size="small" type="primary" onClick={() => handleConfirm(record.id)}>
+          <Button
+            icon={<EditOutlined />}
+            size="small"
+            type="primary"
+            onClick={() => navigate(`/admin/bookings/edit/${record.id}`)}
+          />
+          {record.status === "pending" && (
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => handleUpdateStatus(record.id, "confirmed")}
+            >
               Xác nhận
             </Button>
           )}
-          {record.status === 'confirmed' && (
-            <Button 
-              size="small" 
-              type="primary" 
-              style={{ backgroundColor: 'hsl(var(--success))' }}
-              onClick={() => handleStart(record.id)}
+          {record.status === "confirmed" && (
+            <Button
+              size="small"
+              type="primary"
+              className="bg-green-600 hover:bg-green-500"
+              onClick={() => handleUpdateStatus(record.id, "playing")}
             >
               Bắt đầu
             </Button>
           )}
         </Space>
-      )
+      ),
     },
   ];
 
-  const filteredBookings = mockBookings.filter(booking => {
-    const matchSearch = booking.customerName.toLowerCase().includes(searchText.toLowerCase()) ||
-                       booking.id.toLowerCase().includes(searchText.toLowerCase());
-    const matchStatus = statusFilter === 'all' || booking.status === statusFilter;
+  const filteredBookings = bookings.filter((booking) => {
+    const matchSearch =
+      booking.customer_name.toLowerCase().includes(searchText.toLowerCase()) ||
+      booking.id.toString().includes(searchText);
+    const matchStatus =
+      statusFilter === "all" || booking.status === statusFilter;
     return matchSearch && matchStatus;
   });
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <Row gutter={[16, 16]}>
         <Col xs={12} sm={6}>
-          <Card size="small" className="text-center">
+          <Card size="small">
             <Statistic
-              title="Tổng đặt sân"
-              value={dailyStats.total}
-              prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+              title="Tổng đặt"
+              value={stats.total}
+              styles={{ content: { color: "#1890ff" } }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small" className="text-center bg-amber-50 dark:bg-amber-900/20">
+          <Card size="small" className="bg-amber-50">
             <Statistic
               title="Chờ xác nhận"
-              value={dailyStats.pending}
+              value={stats.pending}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: '#faad14' }}
+              styles={{ content: { color: "#faad14" } }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small" className="text-center bg-blue-50 dark:bg-blue-900/20">
+          <Card size="small" className="bg-blue-50">
             <Statistic
               title="Đã xác nhận"
-              value={dailyStats.confirmed}
+              value={stats.confirmed}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+              styles={{ content: { color: "#1890ff" } }}
             />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
-          <Card size="small" className="text-center bg-green-50 dark:bg-green-900/20">
+          <Card size="small" className="bg-green-50">
             <Statistic
               title="Hoàn thành"
-              value={dailyStats.completed}
+              value={stats.completed}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              styles={{ content: { color: "#52c41a" } }}
             />
           </Card>
         </Col>
       </Row>
 
-      {/* Table */}
       <Card className="border-0 shadow-md">
         <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
           <Space wrap>
             <Input
-              placeholder="Tìm kiếm..."
+              placeholder="Tìm tên hoặc mã..."
               prefix={<SearchOutlined />}
               className="w-64"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
+              allowClear
             />
-            <Select 
-              value={statusFilter} 
+            <Select
+              value={statusFilter}
               onChange={setStatusFilter}
               className="w-40"
             >
@@ -199,13 +256,11 @@ export default function BookingsManagement() {
             </Select>
           </Space>
           <Space>
-            <Button icon={<ExportOutlined />} onClick={handleExport}>
-              Xuất Excel
-            </Button>
-            <Button 
-              type="primary" 
+            <Button icon={<ExportOutlined />}>Xuất Excel</Button>
+            <Button
+              type="primary"
               icon={<PlusOutlined />}
-              onClick={() => navigate('/admin/bookings/add')}
+              onClick={() => navigate("/admin/bookings/add")}
             >
               Tạo đặt sân
             </Button>
@@ -215,7 +270,11 @@ export default function BookingsManagement() {
           dataSource={filteredBookings}
           columns={columns}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showTotal: (total) => `Tổng cộng ${total} lượt đặt`,
+          }}
         />
       </Card>
     </div>

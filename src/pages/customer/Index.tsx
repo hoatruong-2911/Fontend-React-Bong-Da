@@ -1,210 +1,369 @@
-import { Button, Card, Row, Col, Statistic } from 'antd';
+import { Button, Card, Row, Col, Typography, Tag, Rate } from "antd";
 import {
-  ShoppingOutlined,
-  TeamOutlined,
-  RocketOutlined,
-  SafetyOutlined,
-  ThunderboltOutlined,
-  CustomerServiceOutlined,
-  TrophyOutlined,
-  DollarOutlined,
-} from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+  SearchOutlined,
+  PhoneOutlined,
+  MailOutlined,
+  EnvironmentOutlined,
+  PlayCircleOutlined,
+  StarFilled,
+  ClockCircleOutlined,
+  EnvironmentFilled,
+  CalendarOutlined,
+} from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 
-const Index = () => {
+import quangHai from "../../../assets/images/quang_hai.jpg";
+import congPhuong from "../../../assets/images/cong_phuong.jpg";
+import cancris from "../../../assets/images/can_cris.jpg";
+
+const { Title, Paragraph } = Typography;
+
+/* ========================== TYPES ========================== */
+interface Feature {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+}
+
+interface Field {
+  id: number;
+  name: string;
+  image: string;
+  price: string;
+  rating: number;
+  size: string;
+  surface: string;
+  available: boolean;
+}
+
+interface Celeb {
+  name: string;
+  image: string;
+  review: string;
+}
+
+/* ========================== DATA ========================== */
+const features: Feature[] = [
+  {
+    icon: <ClockCircleOutlined style={{ fontSize: 30, color: "#1677ff" }} />,
+    title: "Mở cửa 24/7",
+    desc: "Linh hoạt giờ chơi theo nhu cầu",
+  },
+  {
+    icon: <EnvironmentFilled style={{ fontSize: 30, color: "#1677ff" }} />,
+    title: "Vị trí thuận lợi",
+    desc: "Gần trung tâm thành phố",
+  },
+  {
+    icon: <StarFilled style={{ fontSize: 30, color: "#1677ff" }} />,
+    title: "Chất lượng cao",
+    desc: "Cỏ nhân tạo tiêu chuẩn FIFA",
+  },
+  {
+    icon: <CalendarOutlined style={{ fontSize: 30, color: "#1677ff" }} />,
+    title: "Đặt sân dễ dàng",
+    desc: "Đặt online nhanh chóng",
+  },
+];
+
+const fields: Field[] = [
+  {
+    id: 1,
+    name: "Sân 1 - Sân 5 người",
+    image:
+      "https://images.unsplash.com/photo-1459865264687-595d652de67e?w=800&q=80",
+    price: "500,000đ",
+    rating: 4.8,
+    size: "5 vs 5",
+    surface: "Cỏ nhân tạo",
+    available: true,
+  },
+  {
+    id: 2,
+    name: "Sân 2 - Sân 7 người",
+    image:
+      "https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&q=80",
+    price: "800,000đ",
+    rating: 4.9,
+    size: "7 vs 7",
+    surface: "Cỏ nhân tạo",
+    available: true,
+  },
+  {
+    id: 3,
+    name: "Sân 3 - Sân 11 người",
+    image:
+      "https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=1600&q=80",
+    price: "1,200,000đ",
+    rating: 5,
+    size: "11 vs 11",
+    surface: "Cỏ tự nhiên",
+    available: false,
+  },
+];
+
+const celebs: Celeb[] = [
+  {
+    name: "Nguyễn Quang Hải",
+    image: quangHai,
+    review:
+      "“Sân chất lượng tốt, đặt sân nhanh chóng. Trải nghiệm rất chuyên nghiệp!”",
+  },
+  {
+    name: "Nguyễn Công Phượng",
+    image: congPhuong,
+    review:
+      "“Không gian tuyệt vời, mặt sân êm, rất phù hợp để luyện tập và thi đấu.”",
+  },
+  {
+    name: "Cán Cris",
+    image: cancris,
+    review:
+      "“Đi quay vlog mà book sân quá nhanh, chất lượng sân tuyệt vời!”",
+  },
+];
+
+/* ========================== COMPONENT ========================== */
+const Index: React.FC = () => {
   const navigate = useNavigate();
 
-  const features = [
-    {
-      icon: '🍔',
-      title: 'Đồ Ăn & Thức Uống',
-      description: 'Bánh mì, xúc xích, snack, nước ngọt & nước tăng lực',
-      color: 'border-orange-500',
-    },
-    {
-      icon: '👕',
-      title: 'Trang Phục',
-      description: 'Áo, quần, tất bóng đá chính hãng',
-      color: 'border-blue-500',
-    },
-    {
-      icon: '👟',
-      title: 'Phụ Kiện',
-      description: 'Giày, găng tay, bóng đá & dụng cụ tập',
-      color: 'border-green-500',
-    },
-    {
-      icon: '⚙️',
-      title: 'Quản Lý Nhân Viên',
-      description: 'Chấm công, xếp ca, theo dõi hiệu suất',
-      color: 'border-purple-500',
-    },
-  ];
-
-  const stats = [
-    {
-      icon: <ThunderboltOutlined />,
-      title: 'Nhanh Chóng',
-      value: '99.9%',
-      suffix: 'Uptime',
-      color: '#faad14',
-    },
-    {
-      icon: <SafetyOutlined />,
-      title: 'Bảo Mật',
-      value: '100%',
-      suffix: 'Secure',
-      color: '#52c41a',
-    },
-    {
-      icon: <CustomerServiceOutlined />,
-      title: 'Hỗ Trợ',
-      value: '24/7',
-      suffix: 'Support',
-      color: '#1890ff',
-    },
-    {
-      icon: <TrophyOutlined />,
-      title: 'Chất Lượng',
-      value: '5.0',
-      suffix: '⭐',
-      color: '#eb2f96',
-    },
-  ];
-
   return (
-    <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative py-20 px-4 bg-gradient-to-br from-primary/10 via-background to-accent/10 overflow-hidden">
-        <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-        <div className="container mx-auto text-center space-y-8 max-w-5xl relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full mb-4 animate-bounce">
-            <RocketOutlined className="text-primary" />
-            <span className="text-primary font-semibold">Hệ Thống Quản Lý Chuyên Nghiệp</span>
-          </div>
+    <div style={{ background: "#f5f5f5" }}>
+      {/* ================= HERO ================= */}
+      <div
+        style={{
+          height: 550,
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1543326727-cf6c39e8f84c?w=1600&q=80')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+          }}
+        />
+        <div
+          style={{
+            position: "relative",
+            zIndex: 1,
+            color: "white",
+            textAlign: "center",
+            top: "35%",
+          }}
+        >
+          <Title style={{ color: "white", fontSize: 48 }}>
+            NỀN TẢNG ĐẶT SÂN SỐ 1
+          </Title>
+          <Paragraph style={{ color: "white", fontSize: 20 }}>
+            Đặt sân bóng nhanh – có sân ngay.
+          </Paragraph>
 
-          <h1 className="text-5xl md:text-7xl font-black bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent animate-in fade-in slide-in-from-bottom-4 duration-1000">
-            Stadium Pro
-          </h1>
-
-          <p className="text-2xl md:text-3xl font-bold text-foreground animate-in fade-in slide-in-from-bottom-5 duration-1000 delay-100">
-            Quản Lý Sân Bóng Thông Minh
-          </p>
-
-          <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto animate-in fade-in slide-in-from-bottom-6 duration-1000 delay-200">
-            Hệ thống POS toàn diện cho sân bóng đá - Tối ưu hóa vận hành, tăng doanh thu và nâng cao trải nghiệm khách hàng
-          </p>
-
-          <div className="flex flex-wrap gap-4 justify-center pt-6 animate-in fade-in slide-in-from-bottom-7 duration-1000 delay-300">
+          <div style={{ marginTop: 24 }}>
             <Button
               type="primary"
               size="large"
-              icon={<ShoppingOutlined />}
-              onClick={() => navigate('/products')}
-              className="h-14 px-10 text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
+              style={{ marginRight: 16 }}
+              onClick={() => navigate("/fields")}
             >
-              Xem Sản Phẩm
+              Đặt sân
             </Button>
-            <Button
-              size="large"
-              icon={<TeamOutlined />}
-              onClick={() => navigate('/staff')}
-              className="h-14 px-10 text-lg font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all"
-            >
-              Dashboard Nhân Viên
+            <Button size="large" icon={<SearchOutlined />}>
+              Liên hệ về chúng tôi
             </Button>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* Stats Section */}
-      <section className="py-16 px-4 bg-card border-y border-border">
-        <div className="container mx-auto">
-          <Row gutter={[32, 32]} className="max-w-6xl mx-auto">
-            {stats.map((stat, index) => (
-              <Col xs={24} sm={12} lg={6} key={index}>
-                <Card
-                  className="text-center hover:shadow-xl transition-all hover:scale-105 border-2"
-                  bodyStyle={{ padding: '24px 16px' }}
-                >
-                  <div className="text-4xl mb-4" style={{ color: stat.color }}>
-                    {stat.icon}
+      {/* ================= FEATURES ================= */}
+      <div style={{ padding: "60px 80px", background: "white" }}>
+        <Title level={2} style={{ textAlign: "center", marginBottom: 40 }}>
+          Tại sao chọn chúng tôi?
+        </Title>
+
+        <Row gutter={[30, 30]}>
+          {features.map((f) => (
+            <Col xs={24} md={12} lg={6} key={f.title}>
+              <Card hoverable style={{ textAlign: "center" }}>
+                {f.icon}
+                <Title level={4} style={{ marginTop: 16 }}>
+                  {f.title}
+                </Title>
+                <Paragraph>{f.desc}</Paragraph>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
+
+      {/* ================= 2 IMAGE BLOCK ================= */}
+      <div style={{ padding: "50px 80px", background: "white" }}>
+        <Row gutter={40} justify="center">
+          <Col xs={24} md={10}>
+            <Card
+              hoverable
+              cover={
+                <img src={fields[0].image} alt="" />
+              }
+            >
+              <Title level={4}>ĐẶT SÂN NHANH CHÓNG</Title>
+            </Card>
+          </Col>
+          <Col xs={24} md={10}>
+            <Card
+              hoverable
+              cover={
+                <img src={fields[1].image} alt="" />
+              }
+            >
+              <Title level={4}>SÂN BÓNG HIỆN ĐẠI</Title>
+            </Card>
+          </Col>
+        </Row>
+      </div>
+
+      {/* ================= FIELDS ================= */}
+      <div style={{ padding: "60px 80px" }}>
+        <Title level={2} style={{ textAlign: "center", marginBottom: 40 }}>
+          Các sân bóng của chúng tôi
+        </Title>
+
+        <Row gutter={[30, 30]}>
+          {fields.map((field) => (
+            <Col xs={24} md={12} lg={8} key={field.id}>
+              <Card
+                hoverable
+                cover={
+                  <div style={{ position: "relative" }}>
+                    <img
+                      src={field.image}
+                      alt={field.name}
+                      style={{
+                        height: 200,
+                        width: "100%",
+                        objectFit: "cover",
+                      }}
+                    />
+                    <Tag
+                      color={field.available ? "green" : "red"}
+                      style={{ position: "absolute", top: 10, right: 10 }}
+                    >
+                      {field.available ? "Còn trống" : "Đã đầy"}
+                    </Tag>
                   </div>
-                  <Statistic
-                    title={<span className="text-base font-semibold">{stat.title}</span>}
-                    value={stat.value}
-                    suffix={stat.suffix}
-                    valueStyle={{ color: stat.color, fontSize: '2rem', fontWeight: 'bold' }}
-                  />
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-20 px-4">
-        <div className="container mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-foreground mb-4">
-              Tính Năng Nổi Bật
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Tất cả những gì bạn cần để quản lý sân bóng đá chuyên nghiệp
-            </p>
-          </div>
-
-          <Row gutter={[24, 24]} className="max-w-6xl mx-auto">
-            {features.map((feature, index) => (
-              <Col xs={24} sm={12} lg={6} key={index}>
-                <Card
-                  className={`h-full hover:shadow-2xl hover:scale-105 transition-all duration-300 cursor-pointer border-2 ${feature.color} hover:border-primary group`}
-                  bodyStyle={{ padding: '32px 24px' }}
+                }
+              >
+                <Title level={4}>{field.name}</Title>
+                <Rate disabled allowHalf defaultValue={field.rating} />
+                <Paragraph>Mặt sân: {field.surface}</Paragraph>
+                <Paragraph>Quy mô: {field.size}</Paragraph>
+                <div
+                  style={{
+                    fontSize: 24,
+                    fontWeight: "bold",
+                    color: "#1677ff",
+                  }}
                 >
-                  <div className="text-center space-y-4">
-                    <div className="text-5xl group-hover:scale-125 transition-transform duration-300">
-                      {feature.icon}
-                    </div>
-                    <h3 className="text-xl font-bold text-foreground">{feature.title}</h3>
-                    <p className="text-muted-foreground">{feature.description}</p>
-                  </div>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </div>
-      </section>
+                  {field.price}/giờ
+                </div>
+                <Button
+                  type="primary"
+                  block
+                  size="large"
+                  disabled={!field.available}
+                >
+                  {field.available ? "Đặt sân ngay" : "Hết chỗ"}
+                </Button>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4 bg-gradient-to-r from-primary/10 via-accent/10 to-primary/10">
-        <div className="container mx-auto text-center space-y-8 max-w-4xl">
-          <h2 className="text-4xl md:text-5xl font-bold text-foreground">
-            Sẵn Sàng Bắt Đầu?
-          </h2>
-          <p className="text-xl text-muted-foreground">
-            Trải nghiệm hệ thống quản lý sân bóng hiện đại nhất hiện nay
-          </p>
-          <div className="flex flex-wrap gap-6 justify-center pt-4">
-            <Button
-              type="primary"
-              size="large"
-              icon={<ShoppingOutlined />}
-              onClick={() => navigate('/products')}
-              className="h-16 px-12 text-xl font-bold shadow-xl hover:shadow-2xl hover:scale-110 transition-all"
-            >
-              Khám Phá Ngay
-            </Button>
-            <Button
-              size="large"
-              icon={<DollarOutlined />}
-              className="h-16 px-12 text-xl font-bold shadow-xl hover:shadow-2xl hover:scale-110 transition-all"
-            >
-              Xem Báo Giá
-            </Button>
-          </div>
+      {/* ================= INTRO VIDEO ================= */}
+      <div
+        style={{
+          height: 400,
+          backgroundImage:
+            "url('https://images.unsplash.com/photo-1529900748604-07564a03e7a6?w=1600&q=80')",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          position: "relative",
+          textAlign: "center",
+          color: "white",
+        }}
+      >
+        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,.45)" }} />
+        <div style={{ position: "relative", top: "40%" }}>
+          <Title style={{ color: "white" }}>WESPORT INTRO</Title>
+          <PlayCircleOutlined style={{ fontSize: 60 }} />
         </div>
-      </section>
+      </div>
+
+      {/* ================= PARTNERS ================= */}
+      <div style={{ padding: "50px 80px", background: "white" }}>
+        <Title level={2} style={{ textAlign: "center" }}>
+          ĐỐI TÁC CỦA CHÚNG TÔI
+        </Title>
+        <Paragraph style={{ textAlign: "center", width: "60%", margin: "0 auto" }}>
+          Trở thành đối tác của chúng tôi để cùng phát triển cộng đồng thể thao.
+        </Paragraph>
+      </div>
+
+      {/* ================= CONTACT ================= */}
+      <div style={{ padding: "60px 80px", background: "white" }}>
+        <Title level={2} style={{ textAlign: "center" }}>
+          Liên hệ với chúng tôi
+        </Title>
+
+        <Row gutter={40} justify="center">
+          <Col md={8} style={{ textAlign: "center" }}>
+            <EnvironmentOutlined style={{ fontSize: 36, color: "#1677ff" }} />
+            <Paragraph>123 Đường ABC, TP.HCM</Paragraph>
+          </Col>
+          <Col md={8} style={{ textAlign: "center" }}>
+            <PhoneOutlined style={{ fontSize: 36, color: "#1677ff" }} />
+            <Paragraph>0123 456 789</Paragraph>
+          </Col>
+          <Col md={8} style={{ textAlign: "center" }}>
+            <MailOutlined style={{ fontSize: 36, color: "#1677ff" }} />
+            <Paragraph>info@sanbong.vn</Paragraph>
+          </Col>
+        </Row>
+      </div>
+
+      {/* ================= CELEBS ================= */}
+      <div style={{ padding: "60px 80px", background: "white" }}>
+        <Title level={2} style={{ textAlign: "center", marginBottom: 40 }}>
+          Trải nghiệm của khách hàng nổi tiếng
+        </Title>
+
+        <Row gutter={[30, 30]}>
+          {celebs.map((c) => (
+            <Col xs={24} md={8} key={c.name}>
+              <Card hoverable style={{ textAlign: "center" }}>
+                <img
+                  src={c.image}
+                  alt={c.name}
+                  style={{
+                    width: 140,
+                    height: 140,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    marginBottom: 20,
+                  }}
+                />
+                <Title level={4}>{c.name}</Title>
+                <Paragraph italic>{c.review}</Paragraph>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      </div>
     </div>
   );
 };

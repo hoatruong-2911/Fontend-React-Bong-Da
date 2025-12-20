@@ -35,7 +35,6 @@ import { Field } from "@/services/admin/fieldService";
 dayjs.locale("vi");
 const { Option } = Select;
 
-// --- Giao diện Card bo góc giống trang Add ---
 const CustomCard = ({ title, step, description, children }: any) => (
   <Card className="shadow-sm mb-6" style={{ borderRadius: 12, border: "none" }}>
     <div style={{ marginBottom: 20 }}>
@@ -79,55 +78,20 @@ export default function EditBooking() {
   const [btnLoading, setBtnLoading] = useState(false);
   const [fields, setFields] = useState<Field[]>([]);
 
-  // Watchers để tính tiền tự động khi Admin thay đổi dữ liệu trên Form
+  // Watchers để tính tiền tự động khi thay đổi trên Form
   const watchFieldId = Form.useWatch("field_id", form);
   const watchTimeRange = Form.useWatch("time_range", form);
 
-  // Lấy thông tin sân đang chọn từ danh sách fields
   const selectedField = useMemo(
     () => fields.find((f) => f.id === watchFieldId),
     [watchFieldId, fields]
   );
 
-  // Logic tính tiền hiển thị ở cột bên phải (Fix lỗi NaN)
-  const pricing = useMemo(() => {
-    if (
-      !selectedField ||
-      !watchTimeRange ||
-      !watchTimeRange[0]?.isValid() ||
-      !watchTimeRange[1]?.isValid()
-    )
-      return null;
-
-    const start = watchTimeRange[0];
-    const end = watchTimeRange[1];
-
-    // Tính tổng số giờ đá (End - Start)
-    const durationHours = end.diff(start, "minute") / 60;
-
-    if (durationHours <= 0) return null;
-
-    const basePrice = selectedField.price;
-    const subTotal = basePrice * durationHours;
-
-    // Phụ phí đêm: tính từ 20:00 (8h tối) trở đi
-    const isNight = start.hour() >= 20;
-    const surcharge = isNight ? subTotal * 0.2 : 0;
-
-    return {
-      durationHours,
-      subTotal,
-      surcharge,
-      finalTotal: subTotal + surcharge,
-    };
-  }, [selectedField, watchTimeRange]);
-
-  // 1. Khởi tạo dữ liệu
+  // 1. Tải dữ liệu ban đầu
   useEffect(() => {
     const initData = async () => {
       try {
         setLoading(true);
-        // Tải danh sách sân trước để khớp đơn giá
         const fieldRes = await adminFieldService.getFields();
         const fieldList = fieldRes.data?.data || fieldRes.data || [];
         setFields(fieldList);
@@ -137,20 +101,16 @@ export default function EditBooking() {
           if (res.success) {
             const data = res.data;
 
-            // --- FIX LỖI NGÀY THÁNG ---
-            // Tách phần YYYY-MM-DD từ chuỗi ISO trả về từ Laravel
-            const pureDate = data.booking_date.split("T")[0];
-
-            // Kết hợp ngày và giờ để TimePicker.RangePicker nhận diện được
-            const startDate = dayjs(`${pureDate} ${data.start_time}`);
-            const endDate = dayjs(`${pureDate} ${data.end_time}`);
+            // FIX LỖI INVALID DATE: Kết hợp ngày đặt với giờ bắt đầu/kết thúc
+            const startDate = dayjs(`${data.booking_date} ${data.start_time}`);
+            const endDate = dayjs(`${data.booking_date} ${data.end_time}`);
 
             form.setFieldsValue({
               customer_name: data.customer_name,
               customer_phone: data.customer_phone,
               field_id: data.field_id,
-              booking_date: dayjs(pureDate),
-              time_range: [startDate, endDate], // Đổ dữ liệu vào khung chọn giờ
+              booking_date: dayjs(data.booking_date),
+              time_range: [startDate, endDate], // Truyền đối tượng dayjs hợp lệ
               notes: data.notes,
               status: data.status,
               approved_by: data.approved_by,
@@ -167,7 +127,39 @@ export default function EditBooking() {
     initData();
   }, [id, form]);
 
-  // 2. Gửi dữ liệu cập nhật
+  // 2. LOGIC TÍNH TIỀN CHO CỘT TỔNG KẾT (Fix lỗi NaN)
+  const pricing = useMemo(() => {
+    if (
+      !selectedField ||
+      !watchTimeRange ||
+      !watchTimeRange[0] ||
+      !watchTimeRange[1]
+    )
+      return null;
+
+    const start = watchTimeRange[0];
+    const end = watchTimeRange[1];
+
+    if (!start.isValid() || !end.isValid()) return null;
+
+    const durationMinutes = end.diff(start, "minute");
+    const durationHours = durationMinutes / 60;
+
+    if (durationHours <= 0) return null;
+
+    const basePrice = selectedField.price;
+    const subTotal = basePrice * durationHours;
+    const isNight = start.hour() >= 20;
+    const surcharge = isNight ? subTotal * 0.2 : 0;
+
+    return {
+      durationHours,
+      subTotal,
+      surcharge,
+      finalTotal: subTotal + surcharge,
+    };
+  }, [selectedField, watchTimeRange]);
+
   const onFinish = async (values: any) => {
     try {
       setBtnLoading(true);
@@ -175,20 +167,18 @@ export default function EditBooking() {
         field_id: values.field_id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
-        // Gửi chuỗi format chuẩn Y-m-d H:i:s cho Backend Laravel
+        // Gửi định dạng Y-m-d H:i:s chuẩn cho Backend
         start_time: values.time_range[0].format("YYYY-MM-DD HH:mm:ss"),
         end_time: values.time_range[1].format("YYYY-MM-DD HH:mm:ss"),
-        notes: values.notes || "",
+        notes: values.notes,
         status: values.status,
         approved_by: values.approved_by || null,
         confirmed_by: values.confirmed_by || null,
       };
 
-      const response = await adminBookingService.updateBooking(id!, payload);
-      if (response.success) {
-        message.success("Cập nhật lượt đặt sân thành công!");
-        navigate("/admin/bookings");
-      }
+      await adminBookingService.updateBooking(id!, payload);
+      message.success("Cập nhật thành công!");
+      navigate("/admin/bookings");
     } catch (error: any) {
       message.error(error.response?.data?.message || "Cập nhật thất bại.");
     } finally {
@@ -199,7 +189,7 @@ export default function EditBooking() {
   if (loading)
     return (
       <div className="p-20 text-center">
-        <Spin size="large" tip="Đang đồng bộ dữ liệu..." />
+        <Spin size="large" />
       </div>
     );
 
@@ -212,24 +202,18 @@ export default function EditBooking() {
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate(-1)}
           />
-          <div>
-            <h1 className="text-2xl font-bold m-0">
-              Chỉnh sửa lượt đặt sân #{id}
-            </h1>
-            <p className="text-gray-500 m-0">
-              Cập nhật thông tin khách hàng và lịch trình đá
-            </p>
-          </div>
+          <h1 className="text-2xl font-bold m-0">
+            Chỉnh sửa lượt đặt sân #{id}
+          </h1>
         </header>
 
         <Form form={form} layout="vertical" onFinish={onFinish}>
           <Row gutter={32}>
-            {/* CỘT TRÁI: FORM NHẬP LIỆU */}
             <Col xs={24} lg={16}>
               <CustomCard
                 title="Thông tin khách hàng"
                 step={1}
-                description="Sửa thông tin liên lạc khách đặt"
+                description="Người đặt sân"
               >
                 <Row gutter={16}>
                   <Col span={12}>
@@ -265,7 +249,7 @@ export default function EditBooking() {
               <CustomCard
                 title="Thời gian & Sân"
                 step={2}
-                description="Điều chỉnh sân và khung giờ đá"
+                description="Điều chỉnh lịch trình"
               >
                 <Row gutter={16}>
                   <Col span={12}>
@@ -277,7 +261,7 @@ export default function EditBooking() {
                       <Select size="large">
                         {fields.map((f) => (
                           <Option key={f.id} value={f.id}>
-                            {f.name} - {f.location}
+                            {f.name}
                           </Option>
                         ))}
                       </Select>
@@ -316,15 +300,14 @@ export default function EditBooking() {
               <CustomCard
                 title="Quản lý hệ thống"
                 step={3}
-                description="Cập nhật trạng thái và lưu vết xử lý"
+                description="Cập nhật trạng thái"
               >
                 <Row gutter={16}>
                   <Col span={8}>
-                    <Form.Item label="Trạng thái đơn" name="status">
+                    <Form.Item label="Trạng thái" name="status">
                       <Select size="large">
                         <Option value="pending">Chờ xác nhận</Option>
-                        <Option value="approved">Đã duyệt (Approved)</Option>
-                        <Option value="rejected">Từ chối</Option>
+                        <Option value="confirmed">Đã xác nhận</Option>
                         <Option value="playing">Đang đá</Option>
                         <Option value="completed">Hoàn thành</Option>
                         <Option value="cancelled">Đã hủy</Option>
@@ -333,40 +316,27 @@ export default function EditBooking() {
                   </Col>
                   <Col span={8}>
                     <Form.Item label="Người duyệt (ID)" name="approved_by">
-                      <Input
-                        size="large"
-                        prefix={<SafetyCertificateOutlined />}
-                        placeholder="Ví dụ: 1"
-                      />
+                      <Input size="large" placeholder="Ví dụ: 1" />
                     </Form.Item>
                   </Col>
                   <Col span={8}>
                     <Form.Item label="Người xác nhận (ID)" name="confirmed_by">
-                      <Input
-                        size="large"
-                        prefix={<CheckCircleOutlined />}
-                        placeholder="Ví dụ: 2"
-                      />
+                      <Input size="large" placeholder="Ví dụ: 2" />
                     </Form.Item>
                   </Col>
                   <Col span={24}>
-                    <Form.Item label="Ghi chú nội bộ" name="notes">
-                      <Input.TextArea
-                        rows={3}
-                        placeholder="Ghi chú về thanh toán hoặc yêu cầu của khách..."
-                      />
+                    <Form.Item label="Ghi chú" name="notes">
+                      <Input.TextArea rows={3} />
                     </Form.Item>
                   </Col>
                 </Row>
               </CustomCard>
             </Col>
 
-            {/* CỘT PHẢI: TỔNG KẾT TIỀN (STICKY) */}
+            {/* CỘT TỔNG KẾT ĐẶT SÂN */}
             <Col xs={24} lg={8}>
               <Card
-                title={
-                  <span className="text-lg font-bold">Tổng kết chỉnh sửa</span>
-                }
+                title={<span className="font-bold">Tổng kết chỉnh sửa</span>}
                 className="sticky top-6 shadow-md border-none"
                 style={{ borderRadius: 12 }}
               >
@@ -383,35 +353,31 @@ export default function EditBooking() {
                       {pricing?.durationHours.toFixed(1) || 0} giờ
                     </span>
                   </div>
-
                   <Divider className="my-1" dashed />
-
-                  <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-2">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Tiền sân gốc:</span>
-                      <span>{pricing?.subTotal.toLocaleString() || 0}đ</span>
-                    </div>
-                    {pricing && pricing.surcharge > 0 && (
-                      <div className="flex justify-between text-orange-500 font-medium">
-                        <span>
-                          <InfoCircleOutlined /> Phụ phí đêm (20%):
-                        </span>
-                        <span>{pricing.surcharge.toLocaleString()}đ</span>
+                  {pricing && (
+                    <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-2">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Tiền sân:</span>
+                        <span>{pricing.subTotal.toLocaleString()}đ</span>
                       </div>
-                    )}
-                  </div>
-
+                      {pricing.surcharge > 0 && (
+                        <div className="flex justify-between text-orange-500 font-medium">
+                          <span>
+                            <InfoCircleOutlined /> Phụ phí đêm:
+                          </span>
+                          <span>{pricing.surcharge.toLocaleString()}đ</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-lg font-bold text-gray-700">
-                      TỔNG CỘNG
-                    </span>
+                    <span className="text-lg font-bold">TỔNG CỘNG</span>
                     <div className="text-right">
                       <span className="text-2xl font-black text-green-600">
                         {pricing?.finalTotal.toLocaleString() || 0}đ
                       </span>
                     </div>
                   </div>
-
                   <Button
                     type="primary"
                     size="large"
@@ -424,7 +390,6 @@ export default function EditBooking() {
                       borderRadius: 10,
                       backgroundColor: "#62B462",
                       borderColor: "#62B462",
-                      fontSize: 16,
                       fontWeight: 700,
                     }}
                   >

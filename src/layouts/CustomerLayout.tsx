@@ -141,7 +141,8 @@ export default function CustomerLayout() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-muted/50 mt-12">
+      <footer className="border-t bg-black text-white mt-12">
+
         <div className="container py-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
