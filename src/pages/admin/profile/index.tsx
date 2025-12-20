@@ -1,226 +1,130 @@
-import { useState } from 'react';
-import { 
-  Card, 
-  Form, 
-  Input, 
-  Button, 
-  Avatar, 
-  Typography, 
-  Row, 
-  Col, 
-  Tabs,
-  Switch,
-  message
-} from 'antd';
-import { 
-  UserOutlined, 
-  MailOutlined, 
-  PhoneOutlined, 
-  LockOutlined,
-  EditOutlined,
-  SaveOutlined,
-  SettingOutlined,
+import { useState, useEffect } from "react";
+import { Card, Avatar, Typography, Tabs, Spin, message, Tag } from "antd";
+import {
+  UserOutlined,
+  SafetyOutlined,
   BellOutlined,
-  SafetyOutlined
-} from '@ant-design/icons';
+  SettingOutlined,
+} from "@ant-design/icons";
+import adminUserService from "@/services/admin/userService";
+
+import PersonalInfo from "./PersonalInfo";
+import Security from "./Security";
+import Notifications from "./Notifications";
+import SystemSettings from "./SystemSettings";
 
 const { Title, Text } = Typography;
 
-// Mock admin data
-const mockAdmin = {
-  id: 'ADM001',
-  name: 'Admin Nguyễn',
-  email: 'admin@stadium.com',
-  phone: '0901 234 567',
-  role: 'Super Admin',
-  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-  lastLogin: '29/05/2025 08:30',
-  createdAt: '01/01/2024',
-};
-
 export default function AdminProfile() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [form] = Form.useForm();
+  const [user, setUser] = useState<any>(null);
+  const [fetching, setFetching] = useState(true);
 
-  const handleSave = () => {
-    message.success('Cập nhật thông tin thành công!');
-    setIsEditing(false);
+  const fetchProfile = async () => {
+    try {
+      setFetching(true);
+      const res = await adminUserService.getMe();
+      setUser(res.data);
+    } catch (error) {
+      message.error("Không thể tải thông tin hồ sơ");
+    } finally {
+      setFetching(false);
+    }
   };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  if (fetching)
+    return (
+      <div className="p-20 text-center">
+        <Spin size="large" />
+      </div>
+    );
 
   const tabItems = [
     {
-      key: 'info',
-      label: <span><UserOutlined /> Thông tin cá nhân</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Form
-            form={form}
-            layout="vertical"
-            initialValues={mockAdmin}
-            disabled={!isEditing}
-          >
-            <Row gutter={24}>
-              <Col xs={24} md={12}>
-                <Form.Item label="Họ và tên" name="name">
-                  <Input prefix={<UserOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Email" name="email">
-                  <Input prefix={<MailOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Số điện thoại" name="phone">
-                  <Input prefix={<PhoneOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Vai trò" name="role">
-                  <Input disabled size="large" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form>
-          <div className="flex justify-end gap-3 mt-4">
-            {isEditing ? (
-              <>
-                <Button onClick={() => setIsEditing(false)}>Hủy</Button>
-                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>
-                  Lưu thay đổi
-                </Button>
-              </>
-            ) : (
-              <Button type="primary" icon={<EditOutlined />} onClick={() => setIsEditing(true)}>
-                Chỉnh sửa
-              </Button>
-            )}
-          </div>
-        </Card>
+      key: "info",
+      label: (
+        <span>
+          <UserOutlined /> Thông tin cá nhân
+        </span>
       ),
+      children: <PersonalInfo user={user} onRefresh={fetchProfile} />,
     },
     {
-      key: 'security',
-      label: <span><SafetyOutlined /> Bảo mật</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Form layout="vertical">
-            <Form.Item label="Mật khẩu hiện tại">
-              <Input.Password prefix={<LockOutlined />} size="large" />
-            </Form.Item>
-            <Form.Item label="Mật khẩu mới">
-              <Input.Password prefix={<LockOutlined />} size="large" />
-            </Form.Item>
-            <Form.Item label="Xác nhận mật khẩu mới">
-              <Input.Password prefix={<LockOutlined />} size="large" />
-            </Form.Item>
-            <Button type="primary" icon={<SaveOutlined />}>
-              Đổi mật khẩu
-            </Button>
-          </Form>
-        </Card>
+      key: "security",
+      label: (
+        <span>
+          <SafetyOutlined /> Bảo mật
+        </span>
       ),
+      children: <Security />,
     },
     {
-      key: 'notifications',
-      label: <span><BellOutlined /> Thông báo</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Thông báo đặt sân mới</div>
-                <div className="text-sm text-muted-foreground">Nhận thông báo khi có đặt sân mới</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Thông báo đơn hàng</div>
-                <div className="text-sm text-muted-foreground">Nhận thông báo khi có đơn hàng mới</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Báo cáo doanh thu</div>
-                <div className="text-sm text-muted-foreground">Nhận báo cáo doanh thu hàng ngày</div>
-              </div>
-              <Switch />
-            </div>
-            <div className="flex justify-between items-center py-3">
-              <div>
-                <div className="font-medium">Email marketing</div>
-                <div className="text-sm text-muted-foreground">Nhận thông tin khuyến mãi qua email</div>
-              </div>
-              <Switch />
-            </div>
-          </div>
-        </Card>
+      key: "notifications",
+      label: (
+        <span>
+          <BellOutlined /> Thông báo
+        </span>
       ),
+      children: <Notifications />,
     },
     {
-      key: 'settings',
-      label: <span><SettingOutlined /> Cài đặt hệ thống</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Chế độ tối</div>
-                <div className="text-sm text-muted-foreground">Bật/tắt giao diện tối</div>
-              </div>
-              <Switch />
-            </div>
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Tự động đăng xuất</div>
-                <div className="text-sm text-muted-foreground">Đăng xuất sau 30 phút không hoạt động</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex justify-between items-center py-3">
-              <div>
-                <div className="font-medium">Xác thực 2 bước</div>
-                <div className="text-sm text-muted-foreground">Bảo mật tài khoản với OTP</div>
-              </div>
-              <Switch />
-            </div>
-          </div>
-        </Card>
+      key: "settings",
+      label: (
+        <span>
+          <SettingOutlined /> Hệ thống
+        </span>
       ),
+      children: <SystemSettings />,
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Profile Header */}
-      <Card className="border-0 shadow-md">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <Avatar src={mockAdmin.avatar} size={120} icon={<UserOutlined />} />
+      <Card className="border-0 shadow-md" style={{ borderRadius: 16 }}>
+        <div className="flex flex-col md:flex-row items-center gap-6 p-2">
+          <Avatar
+            size={100}
+            // Nối URL Backend (ví dụ http://127.0.0.1:8000/) với đường dẫn trong DB
+            src={
+              user?.profile?.avatar
+                ? `http://127.0.0.1:8000/${user.profile.avatar}`
+                : null
+            }
+            icon={<UserOutlined />}
+          />
           <div className="text-center md:text-left flex-1">
-            <Title level={2} className="!mb-1">{mockAdmin.name}</Title>
-            <Text className="text-primary font-medium">{mockAdmin.role}</Text>
-            <div className="flex flex-wrap justify-center md:justify-start gap-6 mt-4">
+            <Title level={2} className="!mb-1">
+              {user?.name}
+            </Title>
+            <Tag color="volcano" className="font-semibold">
+              {user?.role?.toUpperCase()}
+            </Tag>
+            <div className="flex flex-wrap justify-center md:justify-start gap-8 mt-4 text-sm text-gray-500">
               <div>
-                <div className="text-sm text-muted-foreground">Mã Admin</div>
-                <div className="font-medium">{mockAdmin.id}</div>
+                Email: <Text strong>{user?.email}</Text>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Đăng nhập lần cuối</div>
-                <div className="font-medium">{mockAdmin.lastLogin}</div>
+                ID: <Text strong>#{user?.id}</Text>
               </div>
               <div>
-                <div className="text-sm text-muted-foreground">Ngày tạo</div>
-                <div className="font-medium">{mockAdmin.createdAt}</div>
+                Gia nhập:{" "}
+                <Text strong>
+                  {new Date(user?.created_at).toLocaleDateString("vi-VN")}
+                </Text>
               </div>
             </div>
           </div>
         </div>
       </Card>
-
-      {/* Tabs */}
-      <Tabs items={tabItems} size="large" />
+      <Tabs
+        items={tabItems}
+        size="large"
+        type="card"
+        className="bg-white p-4 rounded-xl shadow-sm"
+      />
     </div>
   );
 }

@@ -26,9 +26,9 @@ export default function Login() {
       }); // 2. Xử lý thành công
       message.success(`Đăng nhập thành công! Chào mừng ${response.user.role}!`); // Chuyển hướng dựa trên vai trò người dùng (Tùy chọn: tùy chỉnh theo logic app của bạn)
       if (response.user.role === "admin") {
-        navigate("/admin/dashboard");
+        navigate("/admin");
       } else if (response.user.role === "staff") {
-        navigate("/staff/products");
+        navigate("/staff");
       } else {
         navigate("/");
       }

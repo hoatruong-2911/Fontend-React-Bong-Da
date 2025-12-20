@@ -27,6 +27,7 @@ import {
 
 // IMPORT SERVICE
 import adminFieldService, { Field } from "@/services/admin/fieldService";
+import { authService } from "@/services";
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat("vi-VN", {
@@ -40,6 +41,8 @@ export default function FieldsManagement() {
   const [searchText, setSearchText] = useState("");
   const [fields, setFields] = useState<Field[]>([]);
   const [loading, setLoading] = useState(false);
+  const currentUser = authService.getStoredUser();
+  const isAdmin = currentUser?.role === "admin";
 
   // 1. Lấy dữ liệu từ API
   const fetchFields = async () => {
@@ -180,11 +183,13 @@ export default function FieldsManagement() {
         <Space>
           <Button
             icon={<EyeOutlined />}
+            
             size="small"
             onClick={() => navigate(`/admin/fields/${record.id}`)}
           />
           <Button
             icon={<EditOutlined />}
+            disabled={!isAdmin}
             size="small"
             type="primary"
             onClick={() => navigate(`/admin/fields/edit/${record.id}`)}
@@ -197,7 +202,9 @@ export default function FieldsManagement() {
             cancelText="Hủy"
             okButtonProps={{ danger: true }}
           >
-            <Button icon={<DeleteOutlined />} size="small" danger />
+            <Button icon={<DeleteOutlined />} size="small" danger
+          disabled={!isAdmin}
+             />
           </Popconfirm>
         </Space>
       ),
@@ -292,6 +299,7 @@ export default function FieldsManagement() {
             <Button
               type="primary"
               icon={<PlusOutlined />}
+              disabled={!isAdmin}
               onClick={() => navigate("/admin/fields/add")}
             >
               Thêm sân mới

@@ -76,15 +76,21 @@ const authService = {
   },
 
   // Logout
-  logout: async (): Promise<void> => {
+  logout: async () => {
     try {
       await api.post("/auth/logout");
     } finally {
+      // QUAN TRỌNG: Phải xóa đúng key 'auth_token' mà bạn đã set khi login
       localStorage.removeItem("auth_token");
       localStorage.removeItem("user");
+      // Sau khi xóa xong, ProtectedRoute ở Bước 1 sẽ tự động đá user về /login
     }
   },
 
+  isAuthenticated: (): boolean => {
+    // Nếu không còn auth_token trong máy thì trả về false
+    return !!localStorage.getItem("auth_token");
+  },
   // Get current user
   getCurrentUser: async (): Promise<User> => {
     const response = await api.get("/auth/me");
@@ -120,10 +126,7 @@ const authService = {
     return user ? JSON.parse(user) : null;
   },
 
-  // Check if user is authenticated
-  isAuthenticated: (): boolean => {
-    return !!localStorage.getItem("auth_token");
-  },
+  
 };
 
 export default authService;

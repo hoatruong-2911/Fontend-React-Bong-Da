@@ -80,8 +80,20 @@ const adminBookingService = {
     return response.data;
   },
 
-  // 6 
- 
+  // 6
+  // Hàm cập nhật trạng thái nhanh (Sử dụng PATCH để tối ưu)
+  updateStatus: async (id: number | string, status: string) => {
+    // API backend của bro có thể là PATCH /bookings/{id}/status
+    // Hoặc nếu bro dùng hàm update tổng quát thì là PUT /bookings/{id}
+    const response = await api.patch(`/bookings/${id}/status`, { status });
+    return response.data;
+  },
+
+  // Hàm lấy danh sách kèm phân trang
+  // getBookings: async (params?: any) => {
+  //   const response = await api.get("/bookings", { params });
+  //   return response.data;
+  // },
 };
 
 export default adminBookingService;
