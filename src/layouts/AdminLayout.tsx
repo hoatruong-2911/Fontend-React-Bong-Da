@@ -24,6 +24,9 @@ import {
   SettingOutlined,
   BarChartOutlined,
   TrophyOutlined,
+  AppstoreOutlined,
+  CopyrightOutlined,
+  TagsOutlined,
 } from "@ant-design/icons";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 import authService from "../services/authService";
@@ -35,35 +38,25 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-
-  // --- PHẦN CHỈNH SỬA: Dùng State để quản lý thông tin User ---
   const [user, setUser] = useState(authService.getStoredUser());
 
-  // Lắng nghe sự kiện thay đổi từ localStorage
   useEffect(() => {
     const handleUserUpdate = () => {
-      // Cập nhật lại State user mỗi khi có sự kiện 'userUpdate' hoặc 'storage'
       const updatedUser = authService.getStoredUser();
       setUser(updatedUser);
     };
-
-    // Lắng nghe sự kiện tùy chỉnh và sự kiện storage mặc định của trình duyệt
     window.addEventListener("userUpdate", handleUserUpdate);
     window.addEventListener("storage", handleUserUpdate);
-
     return () => {
       window.removeEventListener("userUpdate", handleUserUpdate);
       window.removeEventListener("storage", handleUserUpdate);
     };
   }, []);
 
-  // Tính toán đường dẫn ảnh đại diện (Tự động cập nhật khi State user thay đổi)
-  // const avatarPath = user?.avatar || user?.profile?.avatar;
   const avatarPath = user?.avatar || (user as any)?.profile?.avatar;
   const avatarUrl = avatarPath
     ? `http://127.0.0.1:8000/${avatarPath.replace(/^\//, "")}`
     : null;
-  // ----------------------------------------------------------
 
   const handleLogout = async () => {
     try {
@@ -77,6 +70,7 @@ export default function AdminLayout() {
     }
   };
 
+  // --- CẤU TRÚC MENU MỚI CÓ SUBMENU ---
   const menuItems = [
     { key: "/admin", icon: <DashboardOutlined />, label: "Tổng quan" },
     {
@@ -89,11 +83,31 @@ export default function AdminLayout() {
       icon: <CalendarOutlined />,
       label: "Quản lý đặt sân",
     },
+
+    // NHÓM MENU SẢN PHẨM
     {
-      key: "/admin/products",
+      key: "group-products",
       icon: <ShoppingOutlined />,
       label: "Quản lý sản phẩm",
+      children: [
+        {
+          key: "/admin/products",
+          icon: <AppstoreOutlined />,
+          label: "Sản phẩm",
+        },
+        {
+          key: "/admin/brands",
+          icon: <CopyrightOutlined />,
+          label: "Thương hiệu",
+        },
+        {
+          key: "/admin/categories",
+          icon: <TagsOutlined />,
+          label: "Danh mục",
+        },
+      ],
     },
+
     { key: "/admin/staff", icon: <TeamOutlined />, label: "Quản lý nhân viên" },
     {
       key: "/admin/customers",
@@ -117,6 +131,23 @@ export default function AdminLayout() {
     { key: "/admin/settings", icon: <SettingOutlined />, label: "Cài đặt" },
   ];
 
+  // Hàm xử lý đệ quy để bọc thẻ Link vào label cho tất cả các cấp
+  const mapMenuData = (items: any[]) => {
+    return items.map((item) => {
+      if (item.type === "divider") return item;
+      if (item.children) {
+        return {
+          ...item,
+          children: mapMenuData(item.children),
+        };
+      }
+      return {
+        ...item,
+        label: <Link to={item.key}>{item.label}</Link>,
+      };
+    });
+  };
+
   return (
     <Layout className="min-h-screen" style={{ background: "#064e3b" }}>
       <Sider
@@ -132,6 +163,7 @@ export default function AdminLayout() {
           top: 0,
           left: 0,
           height: "100vh",
+          zIndex: 100,
         }}
       >
         <div className="h-16 flex items-center justify-center border-b border-white/10 mb-4 px-4">
@@ -151,15 +183,17 @@ export default function AdminLayout() {
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
+          // Tự động mở menu con "Quản lý sản phẩm" nếu URL hiện tại thuộc về nhóm đó
+          defaultOpenKeys={
+            location.pathname.includes("products") ||
+            location.pathname.includes("brands") ||
+            location.pathname.includes("categories")
+              ? ["group-products"]
+              : []
+          }
           theme="dark"
           style={{ background: "transparent", border: "none" }}
-          items={menuItems.map((item: any) => {
-            if (item.type === "divider") return item;
-            return {
-              ...item,
-              label: <Link to={item.key}>{item.label}</Link>,
-            };
-          })}
+          items={mapMenuData(menuItems)}
         />
       </Sider>
 
@@ -167,6 +201,7 @@ export default function AdminLayout() {
         className="relative overflow-hidden"
         style={{ background: "transparent" }}
       >
+        {/* ... (Các phần Header, Content giữ nguyên như code cũ của bạn) ... */}
         <div
           className="absolute inset-0 z-0 pointer-events-none opacity-20"
           style={{
@@ -203,7 +238,6 @@ export default function AdminLayout() {
 
           <div className="flex items-center gap-6">
             <NotificationDropdown />
-
             <Dropdown
               menu={{
                 items: [
@@ -233,9 +267,8 @@ export default function AdminLayout() {
               <div className="flex items-center gap-3 cursor-pointer bg-white/5 p-1.5 pr-5 rounded-full border border-white/10 hover:bg-white/10 transition-all shadow-xl group relative overflow-hidden">
                 <div className="relative flex items-center justify-center">
                   <div className="absolute inset-0 rounded-full bg-green-400 opacity-70 blur-md animate-ping-slow"></div>
-
                   <Avatar
-                    key={avatarUrl} // Buộc avatar render lại khi url thay đổi
+                    key={avatarUrl}
                     src={avatarUrl}
                     size={46}
                     icon={<UserOutlined />}
@@ -247,7 +280,6 @@ export default function AdminLayout() {
                     }}
                   />
                 </div>
-
                 <div className="hidden md:block text-left leading-tight ml-1 z-10">
                   <Text className="text-white block font-black text-sm tracking-wide">
                     {user?.name || "Admin VIP"}
@@ -261,7 +293,6 @@ export default function AdminLayout() {
                     </Text>
                   </div>
                 </div>
-
                 <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-shine" />
               </div>
             </Dropdown>
@@ -288,8 +319,24 @@ export default function AdminLayout() {
         .group:hover .group-hover:animate-shine { animation: shine 0.8s ease-in-out; }
         @keyframes ping-slow { 75%, 100% { transform: scale(1.4); opacity: 0; } }
         .animate-ping-slow { animation: ping-slow 2.5s cubic-bezier(0, 0, 0.2, 1) infinite; }
-        .ant-menu-item-selected { background: linear-gradient(90deg, #10b981 0%, transparent 100%) !important; color: #fff !important; font-weight: 800; border-left: 4px solid #fbbf24 !important; }
-        .ant-menu-item:hover { background: rgba(16, 185, 129, 0.1) !important; color: #34d399 !important; }
+        
+        /* Chỉnh sửa style cho Submenu con */
+        .ant-menu-sub.ant-menu-inline {
+          background: rgba(0, 0, 0, 0.2) !important;
+          border-radius: 12px;
+          margin: 4px 10px;
+        }
+        
+        .ant-menu-item-selected { 
+          background: linear-gradient(90deg, #10b981 0%, transparent 100%) !important; 
+          color: #fff !important; 
+          font-weight: 800; 
+          border-left: 4px solid #fbbf24 !important; 
+        }
+        .ant-menu-item:hover, .ant-menu-submenu-title:hover { 
+          background: rgba(16, 185, 129, 0.1) !important; 
+          color: #34d399 !important; 
+        }
         .ant-card, .ant-table { background: #ffffff !important; border-radius: 16px !important; overflow: hidden; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }

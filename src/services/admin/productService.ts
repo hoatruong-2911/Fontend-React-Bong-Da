@@ -1,62 +1,58 @@
-import api from '../api';
+import api from "../api";
 
 export interface Product {
   id: number;
   name: string;
-  description?: string;
+  // slug: string;
+  category_id: number;
+  brand_id: number;
   price: number;
-  category: string;
-  image?: string;
   stock: number;
-  is_active: boolean;
+  image: string | null;
+  description: string | null;
+  available: boolean;
   created_at: string;
   updated_at: string;
+  // Quan hệ dữ liệu
+  category?: { id: number; name: string };
+  brand?: { id: number; name: string };
 }
 
-export interface ProductFilters {
-  category?: string;
-  search?: string;
-  is_active?: boolean;
-  page?: number;
-  per_page?: number;
-}
-
-// Admin Product API
-const adminProductService = {
-  // Lấy danh sách sản phẩm
-  getProducts: async (filters?: ProductFilters) => {
-    const response = await api.get('/admin/products', { params: filters });
+const productService = {
+  getProducts: async () => {
+    const response = await api.get("/admin/products");
     return response.data;
   },
 
-  // Lấy chi tiết sản phẩm
-  getProduct: async (id: number) => {
+  getProductById: async (id: number | string) => {
     const response = await api.get(`/admin/products/${id}`);
     return response.data;
   },
 
-  // Tạo sản phẩm mới
-  createProduct: async (data: Omit<Product, 'id' | 'created_at' | 'updated_at'>) => {
-    const response = await api.post('/admin/products', data);
+  createProduct: async (formData: FormData) => {
+    const response = await api.post("/admin/products", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return response.data;
   },
 
-  // Cập nhật sản phẩm
-  updateProduct: async (id: number, data: Partial<Product>) => {
-    const response = await api.put(`/admin/products/${id}`, data);
+  updateProduct: async (id: number | string, data: FormData) => {
+    data.append("_method", "PUT");
+    const response = await api.post(`/admin/products/${id}`, data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
     return response.data;
   },
 
-  // Xóa sản phẩm
   deleteProduct: async (id: number) => {
-    await api.delete(`/admin/products/${id}`);
+    const response = await api.delete(`/admin/products/${id}`);
+    return response.data;
   },
 
-  // Cập nhật tồn kho
-  updateStock: async (id: number, quantity: number) => {
-    const response = await api.patch(`/admin/products/${id}/stock`, { quantity });
+  toggleStatus: async (id: number) => {
+    const response = await api.patch(`/admin/products/${id}/toggle-status`);
     return response.data;
   },
 };
 
-export default adminProductService;
+export default productService;

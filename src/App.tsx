@@ -18,29 +18,51 @@ import StaffLayout from "./layouts/StaffLayout";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 
-// Admin pages
+//----------------------Admin pages
 import AdminDashboard from "./pages/admin/dashboard/index";
-//-------
+
+//------- Fields
 import AdminFields from "./pages/admin/fields/index";
 import AddField from "./pages/admin/fields/AddField";
 import EditField from "./pages/admin/fields/EditField";
 import FieldDetails from "./pages/admin/fields/FieldDetails";
-//-------
 
+//------- Booking
 import AdminBookings from "./pages/admin/bookings/index";
 import AddBooking from "./pages/admin/bookings/AddBooking";
 import BookingDetails from "./pages/admin/bookings/BookingDetails";
 import EditBooking from "./pages/admin/bookings/EditBooking";
 
-//-------
+//------- User
 import AdminUser from "./pages/admin/user/index";
 import UserAdd from "./pages/admin/user/AddUser";
 import UserEdit from "./pages/admin/user/EditUser";
 import UserDetails from "./pages/admin/user/UserDetails";
 
 //-------
+// Product
+import ProductsManagement from "./pages/admin/products/ProductIndex";
+import ProductAdd from "./pages/admin/products/ProductAdd";
+import ProductEdit from "./pages/admin/products/ProductEdit";
+import ProductDetail from "./pages/admin/products/ProductDetail"; 
 
-import AdminProducts from "./pages/admin/products/index";
+// brand
+import BrandManagement from "./pages/admin/brands/index";
+import BrandAdd from "./pages/admin/brands/BrandAdd";
+import BrandEdit from "./pages/admin/brands/BrandEdit";
+import BrandDetail from "./pages/admin/brands/BrandDetail";
+
+// cate
+import CategoryAdd from "./pages/admin/categories/CategoryAdd";
+import CategoryDetail from "./pages/admin/categories/CategoryDetail";
+import CategoryEdit from "./pages/admin/categories/CategoryEdit";
+import CategoryManagement from "./pages/admin/categories/index";
+
+
+
+//-------
+
+
 import AdminStaff from "./pages/admin/staff-management/index";
 import AdminCustomers from "./pages/admin/customers/index";
 import AdminAttendance from "./pages/admin/attendance/index";
@@ -49,17 +71,17 @@ import AdminProfile from "./pages/admin/profile/index";
 import AdminRevenue from "./pages/admin/revenue/index";
 import AdminSettings from "./pages/admin/settings/index";
 
-// Staff pages
+// ----------------------Staff pages
 import StaffDashboard from "./pages/staff/dashboard/index";
 import StaffBookings from "./pages/staff/bookings/index";
 import StaffFields from "./pages/staff/fields/index";
 import StaffOrders from "./pages/staff/orders/index";
 import StaffProfile from "./pages/staff/profile/index";
 
-// Customer pages
+// ----------------------Customer pages
 import Index from "./pages/customer/Index";
 import Products from "./pages/customer/Products";
-import ProductDetail from "./pages/customer/ProductDetail";
+// import ProductDetail from "./pages/customer/ProductDetail";
 import Fields from "./pages/customer/Fields";
 import FieldDetail from "./pages/customer/FieldDetail";
 import Booking from "./pages/customer/Booking";
@@ -69,6 +91,8 @@ import CustomerProfile from "./pages/customer/profile/index";
 import CustomerOrders from "./pages/customer/orders/index";
 
 import NotFound from "./pages/NotFound";
+
+
 
 const queryClient = new QueryClient();
 
@@ -96,12 +120,10 @@ const App = () => (
             >
               <Route element={<AdminLayout />}>
                 <Route path="/admin" element={<AdminDashboard />} />
-
                 <Route path="/admin/fields" element={<AdminFields />} />
                 <Route path="/admin/fields/add" element={<AddField />} />
                 <Route path="/admin/fields/edit/:id" element={<EditField />} />
                 <Route path="/admin/fields/:id" element={<FieldDetails />} />
-
                 <Route path="/admin/bookings" element={<AdminBookings />} />
                 <Route path="/admin/bookings/add" element={<AddBooking />} />
                 <Route
@@ -112,13 +134,11 @@ const App = () => (
                   path="/admin/bookings/edit/:id"
                   element={<EditBooking />}
                 />
-
                 <Route path="/admin/user" element={<AdminUser />} />
                 <Route path="/admin/user/add" element={<UserAdd />} />
                 <Route path="/admin/user/edit/:id" element={<UserEdit />} />
                 <Route path="/admin/user/:id" element={<UserDetails />} />
-
-                <Route path="/admin/products" element={<AdminProducts />} />
+                {/* <Route path="/admin/products" element={<AdminProducts />} /> */}
                 <Route path="/admin/staff" element={<AdminStaff />} />
                 <Route path="/admin/customers" element={<AdminCustomers />} />
                 <Route path="/admin/attendance" element={<AdminAttendance />} />
@@ -126,12 +146,32 @@ const App = () => (
                 <Route path="/admin/revenue" element={<AdminRevenue />} />
                 <Route path="/admin/settings" element={<AdminSettings />} />
                 <Route path="/admin/profile" element={<AdminProfile />} />
+                {/* // Nhóm Admin */}
+                <Route path="/admin/products" element={<ProductsManagement />} />
+                <Route path="/admin/products/add" element={<ProductAdd />} />
+                <Route path="/admin/products/edit/:id" element={<ProductEdit />} />
+                <Route path="/admin/products/:id" element={<ProductDetail />} />
+                
+
+
+
+
+                <Route path="/admin/brands" element={<BrandManagement />} />
+                <Route path="/admin/brands/add" element={<BrandAdd />} />
+                <Route path="/admin/brands/edit/:id" element={<BrandEdit />} />
+                <Route path="/admin/brands/:id" element={<BrandDetail />} />
+
+                <Route path="/admin/categories" element={<CategoryManagement />} />
+                <Route path="/admin/categories/add" element={<CategoryAdd />} />
+                <Route path="/admin/categories/edit/:id" element={<CategoryEdit />} />
+                <Route path="/admin/categories/:id" element={<CategoryDetail />} />
+
               </Route>
             </Route>
 
             {/* --- STAFF ONLY ROUTES --- */}
             <Route
-              element={<ProtectedRoute allowedRoles={["staff", "admin"]} />}
+              element={<ProtectedRoute allowedRoles={["staff", "admin", ]} />}
             >
               <Route element={<StaffLayout />}>
                 <Route path="/staff" element={<StaffDashboard />} />
