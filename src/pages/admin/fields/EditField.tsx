@@ -1,196 +1,142 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
+  Card,
   Form,
   Input,
-  DatePicker,
-  TimePicker,
+  InputNumber,
   Select,
+  Switch,
   Button,
-  Card,
-  message,
-  Spin,
   Space,
+  message,
+  Upload,
   Row,
   Col,
-  Divider,
+  Spin,
 } from "antd";
 import {
   ArrowLeftOutlined,
   SaveOutlined,
-  UserOutlined,
-  PhoneOutlined,
-  SafetyCertificateOutlined,
-  CheckCircleOutlined,
-  InfoCircleOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
-import dayjs from "dayjs";
-import "dayjs/locale/vi";
-
-// IMPORT SERVICES
-import adminBookingService from "@/services/admin/bookingService";
+import type { UploadFile } from "antd";
 import adminFieldService from "@/services/admin/fieldService";
-import { Field } from "@/services/admin/fieldService";
 
-dayjs.locale("vi");
-const { Option } = Select;
+const { TextArea } = Input;
 
-// --- Giao diện Card bo góc giống trang Add ---
-const CustomCard = ({ title, step, description, children }: any) => (
-  <Card className="shadow-sm mb-6" style={{ borderRadius: 12, border: "none" }}>
-    <div style={{ marginBottom: 20 }}>
-      <Space align="center" style={{ marginBottom: 4 }}>
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: "50%",
-            backgroundColor: "#62B462",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
-            fontSize: 16,
-          }}
-        >
-          {step}
-        </div>
-        <h3
-          style={{ margin: 0, fontSize: 20, fontWeight: 600, color: "#262626" }}
-        >
-          {title}
-        </h3>
-      </Space>
-      <p style={{ margin: 0, marginLeft: 44, color: "#8c8c8c", fontSize: 14 }}>
-        {description}
-      </p>
-    </div>
-    <div style={{ marginLeft: 44 }}>{children}</div>
-  </Card>
-);
+// 1. Hàm chuẩn hóa file cho Upload
+const normFile = (e: { fileList: UploadFile[] } | UploadFile[]) => {
+  if (Array.isArray(e)) return e;
+  return e?.fileList;
+};
 
-export default function EditBooking() {
+export default function EditField() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [form] = Form.useForm();
+  const [loading, setLoading] = useState(true); // Trạng thái tải dữ liệu ban đầu
+  const [btnLoading, setBtnLoading] = useState(false); // Trạng thái nút lưu
 
-  const [loading, setLoading] = useState(true);
-  const [btnLoading, setBtnLoading] = useState(false);
-  const [fields, setFields] = useState<Field[]>([]);
-
-  // Watchers để tính tiền tự động khi Admin thay đổi dữ liệu trên Form
-  const watchFieldId = Form.useWatch("field_id", form);
-  const watchTimeRange = Form.useWatch("time_range", form);
-
-  // Lấy thông tin sân đang chọn từ danh sách fields
-  const selectedField = useMemo(
-    () => fields.find((f) => f.id === watchFieldId),
-    [watchFieldId, fields]
-  );
-
-  // Logic tính tiền hiển thị ở cột bên phải (Fix lỗi NaN)
-  const pricing = useMemo(() => {
-    if (
-      !selectedField ||
-      !watchTimeRange ||
-      !watchTimeRange[0]?.isValid() ||
-      !watchTimeRange[1]?.isValid()
-    )
-      return null;
-
-    const start = watchTimeRange[0];
-    const end = watchTimeRange[1];
-
-    // Tính tổng số giờ đá (End - Start)
-    const durationHours = end.diff(start, "minute") / 60;
-
-    if (durationHours <= 0) return null;
-
-    const basePrice = selectedField.price;
-    const subTotal = basePrice * durationHours;
-
-    // Phụ phí đêm: tính từ 20:00 (8h tối) trở đi
-    const isNight = start.hour() >= 20;
-    const surcharge = isNight ? subTotal * 0.2 : 0;
-
-    return {
-      durationHours,
-      subTotal,
-      surcharge,
-      finalTotal: subTotal + surcharge,
-    };
-  }, [selectedField, watchTimeRange]);
-
-  // 1. Khởi tạo dữ liệu
+  // 2. Khởi tạo dữ liệu (Fetch Data)
   useEffect(() => {
     const initData = async () => {
       try {
         setLoading(true);
-        // Tải danh sách sân trước để khớp đơn giá
-        const fieldRes = await adminFieldService.getFields();
-        const fieldList = fieldRes.data?.data || fieldRes.data || [];
-        setFields(fieldList);
-
         if (id) {
-          const res = await adminBookingService.getBookingById(id);
-          if (res.success) {
+          const res = await adminFieldService.getFieldById(id);
+          if (res.data) {
             const data = res.data;
 
-            // --- FIX LỖI NGÀY THÁNG ---
-            // Tách phần YYYY-MM-DD từ chuỗi ISO trả về từ Laravel
-            const pureDate = data.booking_date.split("T")[0];
-
-            // Kết hợp ngày và giờ để TimePicker.RangePicker nhận diện được
-            const startDate = dayjs(`${pureDate} ${data.start_time}`);
-            const endDate = dayjs(`${pureDate} ${data.end_time}`);
-
+            // Mapping dữ liệu từ DB lên Form
             form.setFieldsValue({
-              customer_name: data.customer_name,
-              customer_phone: data.customer_phone,
-              field_id: data.field_id,
-              booking_date: dayjs(pureDate),
-              time_range: [startDate, endDate], // Đổ dữ liệu vào khung chọn giờ
-              notes: data.notes,
-              status: data.status,
-              approved_by: data.approved_by,
-              confirmed_by: data.confirmed_by,
+              name: data.name,
+              location: data.location,
+              // Chuyển f5 -> 5v5 để khớp với Select Option
+              size:
+                data.type === "f5"
+                  ? "5v5"
+                  : data.type === "f7"
+                  ? "7v7"
+                  : "11v11",
+              surface: data.surface,
+              price: data.price,
+              description: data.description,
+              features: Array.isArray(data.features) ? data.features : [],
+              available: Number(data.available) === 1,
+              // Hiển thị ảnh cũ trong danh sách Upload (nếu có)
+              image: data.image
+                ? [
+                    {
+                      uid: "-1",
+                      name: "image.png",
+                      status: "done",
+                      url: data.image.startsWith("data:")
+                        ? data.image
+                        : `http://127.0.0.1:8000/${data.image}`,
+                    },
+                  ]
+                : [],
             });
           }
         }
       } catch (error) {
-        message.error("Lỗi khi tải dữ liệu đơn hàng.");
+        message.error("Không tìm thấy thông tin sân bóng!");
+        navigate("/admin/fields");
       } finally {
         setLoading(false);
       }
     };
     initData();
-  }, [id, form]);
+  }, [id, form, navigate]);
 
-  // 2. Gửi dữ liệu cập nhật
-  const onFinish = async (values: any) => {
+  // 3. Xử lý lưu dữ liệu (Submit)
+  const handleSubmit = async (values: any) => {
     try {
       setBtnLoading(true);
-      const payload = {
-        field_id: values.field_id,
-        customer_name: values.customer_name,
-        customer_phone: values.customer_phone,
-        // Gửi chuỗi format chuẩn Y-m-d H:i:s cho Backend Laravel
-        start_time: values.time_range[0].format("YYYY-MM-DD HH:mm:ss"),
-        end_time: values.time_range[1].format("YYYY-MM-DD HH:mm:ss"),
-        notes: values.notes || "",
-        status: values.status,
-        approved_by: values.approved_by || null,
-        confirmed_by: values.confirmed_by || null,
+
+      // Xử lý lấy chuỗi Base64 (nếu người dùng chọn ảnh mới)
+      let imageBase64 = "";
+      if (values.image && values.image.length > 0) {
+        // Nếu là ảnh mới chọn từ máy tính
+        if (values.image[0].originFileObj) {
+          const reader = new FileReader();
+          imageBase64 = await new Promise((resolve) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(values.image[0].originFileObj);
+          });
+        } else {
+          // Nếu vẫn là ảnh cũ (không thay đổi)
+          imageBase64 = values.image[0].url || "";
+        }
+      }
+
+      // Mapping dữ liệu chuẩn gửi về Backend
+      const submitData = {
+        name: values.name,
+        location: values.location,
+        type:
+          values.size === "5v5" ? "f5" : values.size === "7v7" ? "f7" : "f11",
+        size: values.size === "5v5" ? 5 : values.size === "7v7" ? 7 : 11,
+        surface: values.surface,
+        price: values.price,
+        description: values.description,
+        features: values.features || [],
+        available: values.available ? 1 : 0,
+        image: imageBase64,
       };
 
-      const response = await adminBookingService.updateBooking(id!, payload);
+      const response = await adminFieldService.updateField(id!, submitData);
+
       if (response.success) {
-        message.success("Cập nhật lượt đặt sân thành công!");
-        navigate("/admin/bookings");
+        message.success("Cập nhật sân bóng thành công!");
+        navigate("/admin/fields");
       }
     } catch (error: any) {
-      message.error(error.response?.data?.message || "Cập nhật thất bại.");
+      console.error("Lỗi khi cập nhật:", error);
+      const errorMsg =
+        error.response?.data?.message || "Có lỗi xảy ra khi lưu dữ liệu!";
+      message.error(errorMsg);
     } finally {
       setBtnLoading(false);
     }
@@ -199,243 +145,154 @@ export default function EditBooking() {
   if (loading)
     return (
       <div className="p-20 text-center">
-        <Spin size="large" tip="Đang đồng bộ dữ liệu..." />
+        <Spin size="large" tip="Đang tải dữ liệu sân..." />
       </div>
     );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto">
-        <header className="mb-8 flex items-center gap-4">
-          <Button
-            shape="circle"
-            icon={<ArrowLeftOutlined />}
-            onClick={() => navigate(-1)}
-          />
-          <div>
-            <h1 className="text-2xl font-bold m-0">
-              Chỉnh sửa lượt đặt sân #{id}
-            </h1>
-            <p className="text-gray-500 m-0">
-              Cập nhật thông tin khách hàng và lịch trình đá
-            </p>
-          </div>
-        </header>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center gap-4">
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => navigate("/admin/fields")}
+        >
+          Quay lại
+        </Button>
+        <div>
+          <h1 className="text-2xl font-bold">Chỉnh sửa sân bóng #{id}</h1>
+          <p className="text-muted-foreground">
+            Cập nhật thông tin chi tiết sân bóng
+          </p>
+        </div>
+      </div>
 
-        <Form form={form} layout="vertical" onFinish={onFinish}>
-          <Row gutter={32}>
-            {/* CỘT TRÁI: FORM NHẬP LIỆU */}
-            <Col xs={24} lg={16}>
-              <CustomCard
-                title="Thông tin khách hàng"
-                step={1}
-                description="Sửa thông tin liên lạc khách đặt"
+      {/* Form - GIỐNG HỆT TRANG ADD */}
+      <Card className="border-0 shadow-md">
+        <Form form={form} layout="vertical" onFinish={handleSubmit}>
+          <Row gutter={24}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="name"
+                label="Tên sân"
+                rules={[{ required: true, message: "Vui lòng nhập tên sân" }]}
               >
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item
-                      label="Tên khách hàng"
-                      name="customer_name"
-                      rules={[{ required: true }]}
-                    >
-                      <Input size="large" prefix={<UserOutlined />} />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item
-                      label="Số điện thoại"
-                      name="customer_phone"
-                      rules={[{ required: true }]}
-                    >
-                      <Input
-                        size="large"
-                        prefix={<PhoneOutlined />}
-                        onChange={(e) =>
-                          form.setFieldValue(
-                            "customer_phone",
-                            e.target.value.replace(/[^0-9]/g, "")
-                          )
-                        }
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </CustomCard>
-
-              <CustomCard
-                title="Thời gian & Sân"
-                step={2}
-                description="Điều chỉnh sân và khung giờ đá"
-              >
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item
-                      label="Chọn sân"
-                      name="field_id"
-                      rules={[{ required: true }]}
-                    >
-                      <Select size="large">
-                        {fields.map((f) => (
-                          <Option key={f.id} value={f.id}>
-                            {f.name} - {f.location}
-                          </Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item
-                      label="Ngày đặt"
-                      name="booking_date"
-                      rules={[{ required: true }]}
-                    >
-                      <DatePicker
-                        size="large"
-                        className="w-full"
-                        format="DD/MM/YYYY"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item
-                      label="Khung giờ đá"
-                      name="time_range"
-                      rules={[{ required: true }]}
-                    >
-                      <TimePicker.RangePicker
-                        size="large"
-                        format="HH:mm"
-                        className="w-full"
-                        minuteStep={15}
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </CustomCard>
-
-              <CustomCard
-                title="Quản lý hệ thống"
-                step={3}
-                description="Cập nhật trạng thái và lưu vết xử lý"
-              >
-                <Row gutter={16}>
-                  <Col span={8}>
-                    <Form.Item label="Trạng thái đơn" name="status">
-                      <Select size="large">
-                        <Option value="pending">Chờ xác nhận</Option>
-                        <Option value="approved">Đã duyệt (Approved)</Option>
-                        <Option value="rejected">Từ chối</Option>
-                        <Option value="playing">Đang đá</Option>
-                        <Option value="completed">Hoàn thành</Option>
-                        <Option value="cancelled">Đã hủy</Option>
-                      </Select>
-                    </Form.Item>
-                  </Col>
-                  <Col span={8}>
-                    <Form.Item label="Người duyệt (ID)" name="approved_by">
-                      <Input
-                        size="large"
-                        prefix={<SafetyCertificateOutlined />}
-                        placeholder="Ví dụ: 1"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={8}>
-                    <Form.Item label="Người xác nhận (ID)" name="confirmed_by">
-                      <Input
-                        size="large"
-                        prefix={<CheckCircleOutlined />}
-                        placeholder="Ví dụ: 2"
-                      />
-                    </Form.Item>
-                  </Col>
-                  <Col span={24}>
-                    <Form.Item label="Ghi chú nội bộ" name="notes">
-                      <Input.TextArea
-                        rows={3}
-                        placeholder="Ghi chú về thanh toán hoặc yêu cầu của khách..."
-                      />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </CustomCard>
+                <Input placeholder="VD: Sân bóng Premium A1" />
+              </Form.Item>
             </Col>
-
-            {/* CỘT PHẢI: TỔNG KẾT TIỀN (STICKY) */}
-            <Col xs={24} lg={8}>
-              <Card
-                title={
-                  <span className="text-lg font-bold">Tổng kết chỉnh sửa</span>
-                }
-                className="sticky top-6 shadow-md border-none"
-                style={{ borderRadius: 12 }}
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="location"
+                label="Địa điểm"
+                rules={[{ required: true, message: "Vui lòng nhập địa điểm" }]}
               >
-                <div className="space-y-4">
-                  <div className="flex justify-between text-gray-500">
-                    <span>Đơn giá sân:</span>
-                    <span className="font-medium text-gray-800">
-                      {selectedField?.price.toLocaleString() || 0}đ/h
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>Thời lượng:</span>
-                    <span className="font-bold text-blue-600">
-                      {pricing?.durationHours.toFixed(1) || 0} giờ
-                    </span>
-                  </div>
-
-                  <Divider className="my-1" dashed />
-
-                  <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-2">
-                    <div className="flex justify-between text-gray-600">
-                      <span>Tiền sân gốc:</span>
-                      <span>{pricing?.subTotal.toLocaleString() || 0}đ</span>
-                    </div>
-                    {pricing && pricing.surcharge > 0 && (
-                      <div className="flex justify-between text-orange-500 font-medium">
-                        <span>
-                          <InfoCircleOutlined /> Phụ phí đêm (20%):
-                        </span>
-                        <span>{pricing.surcharge.toLocaleString()}đ</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex justify-between items-center pt-2">
-                    <span className="text-lg font-bold text-gray-700">
-                      TỔNG CỘNG
-                    </span>
-                    <div className="text-right">
-                      <span className="text-2xl font-black text-green-600">
-                        {pricing?.finalTotal.toLocaleString() || 0}đ
-                      </span>
-                    </div>
-                  </div>
-
-                  <Button
-                    type="primary"
-                    size="large"
-                    block
-                    icon={<SaveOutlined />}
-                    htmlType="submit"
-                    loading={btnLoading}
-                    style={{
-                      height: 54,
-                      borderRadius: 10,
-                      backgroundColor: "#62B462",
-                      borderColor: "#62B462",
-                      fontSize: 16,
-                      fontWeight: 700,
-                    }}
-                  >
-                    LƯU THAY ĐỔI
-                  </Button>
-                </div>
-              </Card>
+                <Input placeholder="VD: Quận 1, TP. HCM" />
+              </Form.Item>
             </Col>
           </Row>
+
+          <Row gutter={24}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="size"
+                label="Loại sân"
+                rules={[{ required: true, message: "Vui lòng chọn loại sân" }]}
+              >
+                <Select>
+                  <Select.Option value="5v5">Sân 5 người</Select.Option>
+                  <Select.Option value="7v7">Sân 7 người</Select.Option>
+                  <Select.Option value="11v11">Sân 11 người</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="surface"
+                label="Mặt sân"
+                rules={[{ required: true, message: "Vui lòng chọn mặt sân" }]}
+              >
+                <Select>
+                  <Select.Option value="Cỏ nhân tạo">Cỏ nhân tạo</Select.Option>
+                  <Select.Option value="Cỏ tự nhiên">Cỏ tự nhiên</Select.Option>
+                  <Select.Option value="Sân cứng">Sân cứng</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="price"
+                label="Giá thuê (VND/giờ)"
+                rules={[{ required: true, message: "Vui lòng nhập giá thuê" }]}
+              >
+                <InputNumber
+                  className="w-full"
+                  min={0}
+                  formatter={(value) =>
+                    `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+                  }
+                  parser={(value) => value!.replace(/\$\s?|(,*)/g, "") as any}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Form.Item name="description" label="Mô tả">
+            <TextArea rows={4} placeholder="Mô tả chi tiết về sân bóng..." />
+          </Form.Item>
+
+          <Form.Item name="features" label="Tiện ích">
+            <Select mode="tags" placeholder="Nhập các tiện ích">
+              <Select.Option value="Đèn chiếu sáng">
+                Đèn chiếu sáng
+              </Select.Option>
+              <Select.Option value="Phòng thay đồ">Phòng thay đồ</Select.Option>
+              <Select.Option value="Bãi đỗ xe">Bãi đỗ xe</Select.Option>
+              <Select.Option value="Căng tin">Căng tin</Select.Option>
+              <Select.Option value="WiFi">WiFi</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="image"
+            label="Hình ảnh"
+            valuePropName="fileList"
+            getValueFromEvent={normFile}
+          >
+            <Upload
+              maxCount={1}
+              listType="picture-card"
+              beforeUpload={() => false}
+            >
+              <div>
+                <UploadOutlined />
+                <div className="mt-2">Thay đổi ảnh</div>
+              </div>
+            </Upload>
+          </Form.Item>
+
+          <Form.Item
+            name="available"
+            label="Trạng thái"
+            valuePropName="checked"
+          >
+            <Switch checkedChildren="Hoạt động" unCheckedChildren="Bảo trì" />
+          </Form.Item>
+
+          <Form.Item>
+            <Space>
+              <Button
+                type="primary"
+                htmlType="submit"
+                icon={<SaveOutlined />}
+                loading={btnLoading}
+              >
+                Cập nhật sân bóng
+              </Button>
+              <Button onClick={() => navigate("/admin/fields")}>Hủy</Button>
+            </Space>
+          </Form.Item>
         </Form>
-      </div>
+      </Card>
     </div>
   );
 }

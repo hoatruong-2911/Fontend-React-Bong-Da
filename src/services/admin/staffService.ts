@@ -1,113 +1,85 @@
-import api from '../api';
+import api from "../api";
+import { Department } from "./departmentService";
 
+// Interface dành cho dữ liệu hiển thị (Read)
 export interface Staff {
   id: number;
-  user_id: number;
+  department_id: number;
+  department?: Department;
   name: string;
   email: string;
-  phone?: string;
+  phone: string;
   position: string;
-  department: string;
-  avatar?: string;
-  hire_date: string;
+  avatar: string | null;
   salary: number;
-  is_active: boolean;
+  bonus: number;
+  join_date: string;
+  status: "active" | "off" | "inactive";
+  shift: string | null;
   created_at: string;
-  updated_at: string;
 }
 
-export interface Shift {
-  id: number;
-  staff_id: number;
-  staff_name: string;
-  date: string;
-  start_time: string;
-  end_time: string;
-  type: 'morning' | 'afternoon' | 'evening' | 'night';
-  status: 'scheduled' | 'working' | 'completed' | 'absent';
-  check_in?: string;
-  check_out?: string;
-  notes?: string;
+
+
+// Interface dành cho kết quả trả về từ API
+export interface StaffResponse {
+  success: boolean;
+  data: Staff;
+  message?: string;
 }
 
-export interface Attendance {
-  id: number;
-  staff_id: number;
-  staff_name: string;
-  date: string;
-  check_in?: string;
-  check_out?: string;
-  status: 'present' | 'late' | 'absent' | 'leave';
-  work_hours?: number;
-  overtime_hours?: number;
-  notes?: string;
-}
-
-export interface StaffFilters {
-  position?: string;
-  department?: string;
-  is_active?: boolean;
-  page?: number;
-  per_page?: number;
-}
-
-// Admin Staff API
-const adminStaffService = {
-  // ===== STAFF =====
-  getStaff: async (filters?: StaffFilters) => {
-    const response = await api.get('/admin/staff', { params: filters });
-    return response.data;
+const staffService = {
+  // 1. Lấy danh sách
+  getStaffs: async (): Promise<{ success: boolean; data: Staff[] }> => {
+    const res = await api.get("/admin/staff");
+    return res.data;
   },
 
-  getStaffMember: async (id: number) => {
-    const response = await api.get(`/admin/staff/${id}`);
-    return response.data;
+  // 2. Lấy chi tiết
+  getStaffById: async (
+    id: string | number
+  ): Promise<{ success: boolean; data: Staff }> => {
+    const res = await api.get(`/admin/staff/${id}`);
+    return res.data;
   },
 
-  createStaff: async (data: Omit<Staff, 'id' | 'created_at' | 'updated_at'>) => {
-    const response = await api.post('/admin/staff', data);
-    return response.data;
+  // 3. Thêm mới nhân viên (Sử dụng FormData để chứa ảnh)
+  createStaff: async (formData: FormData): Promise<StaffResponse> => {
+    const res = await api.post("/admin/staff", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
   },
 
-  updateStaff: async (id: number, data: Partial<Staff>) => {
-    const response = await api.put(`/admin/staff/${id}`, data);
-    return response.data;
+  // 4. Cập nhật nhân viên (Sử dụng FormData + Method Spoofing)
+  updateStaff: async (
+    id: string | number,
+    formData: FormData
+  ): Promise<StaffResponse> => {
+    // Laravel yêu cầu dòng này để hiểu đây là lệnh PUT khi gửi FormData qua POST
+    formData.append("_method", "PUT");
+
+    const res = await api.post(`/admin/staff/${id}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return res.data;
   },
 
-  deleteStaff: async (id: number) => {
-    await api.delete(`/admin/staff/${id}`);
+  // 5. Xóa nhân viên
+  deleteStaff: async (
+    id: string | number
+  ): Promise<{ success: boolean; message: string }> => {
+    const res = await api.delete(`/admin/staff/${id}`);
+    return res.data;
   },
 
-  // ===== SHIFTS =====
-  getShifts: async (filters?: { staff_id?: number; date_from?: string; date_to?: string }) => {
-    const response = await api.get('/admin/shifts', { params: filters });
-    return response.data;
-  },
-
-  createShift: async (data: Omit<Shift, 'id' | 'staff_name'>) => {
-    const response = await api.post('/admin/shifts', data);
-    return response.data;
-  },
-
-  updateShift: async (id: number, data: Partial<Shift>) => {
-    const response = await api.put(`/admin/shifts/${id}`, data);
-    return response.data;
-  },
-
-  deleteShift: async (id: number) => {
-    await api.delete(`/admin/shifts/${id}`);
-  },
-
-  // ===== ATTENDANCE =====
-  getAttendance: async (filters?: { staff_id?: number; date_from?: string; date_to?: string }) => {
-    const response = await api.get('/admin/attendance', { params: filters });
-    return response.data;
-  },
-
-  getAttendanceStatistics: async (date_from?: string, date_to?: string) => {
-    const response = await api.get('/admin/attendance/statistics', { params: { date_from, date_to } });
-    return response.data;
+  // 6. Đổi trạng thái nhanh
+  toggleStatus: async (
+    id: string | number
+  ): Promise<{ success: boolean; message: string }> => {
+    const res = await api.patch(`/admin/staff/${id}/toggle-status`);
+    return res.data;
   },
 };
 
-export default adminStaffService;
+export default staffService;

@@ -3,6 +3,7 @@ import api from "../api";
 export interface Field {
   id: number;
   name: string;
+  slug: string;
   type: string; // Khớp với cột 'type' trong DB
   price: number; // Sửa từ price_per_hour thành price
   size: number;

@@ -1,3 +1,4 @@
+import { ProductFilters } from './../customer/productService';
 export { default as productService } from './productService';
 export { default as fieldService } from './fieldService';
 export { default as orderService } from './orderService';

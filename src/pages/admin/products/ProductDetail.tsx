@@ -13,6 +13,7 @@ import {
   Divider,
   Spin,
   Statistic,
+  message,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -109,8 +110,7 @@ export default function ProductDetail() {
                     value={product.stock}
                     prefix={<DropboxOutlined className="text-orange-500" />}
                     valueStyle={{
-                      color:
-                        product.stock < 10 ? "#ef4444" : "#10b981",
+                      color: product.stock < 10 ? "#ef4444" : "#10b981",
                       fontWeight: 900,
                     }}
                   />
@@ -161,10 +161,34 @@ export default function ProductDetail() {
                 >
                   {product.name}
                 </Title>
-                <Text type="secondary" className="font-mono text-xs italic">
-                  SKU: PROD-{product.id}-
-                  {product.slug?.substring(0, 5).toUpperCase()}
-                </Text>
+                {/* KHU VỰC THÊM SLUG ĐÃ ĐƯỢC CĂN CHỈNH ĐẸP HƠN */}
+                <Space
+                  split={<Divider type="vertical" />}
+                  className="mt-2 bg-gray-50/50 p-2 rounded-lg border border-gray-100/50"
+                >
+                  <Text
+                    type="secondary"
+                    className="font-mono text-[10px] italic"
+                  >
+                    ID:{" "}
+                    <span className="text-gray-900 font-bold">
+                      #{product.id}
+                    </span>
+                  </Text>
+                  <Text className="font-mono text-[10px]">
+                    URL SLUG:{" "}
+                    <span className="text-blue-600 font-bold">
+                      /{product.slug}
+                    </span>
+                  </Text>
+                  <Text className="font-mono text-[10px]">
+                    SKU:{" "}
+                    <span className="text-purple-600 font-bold">
+                      PROD-{product.id}-
+                      {product.slug?.substring(0, 3).toUpperCase()}
+                    </span>
+                  </Text>
+                </Space>
               </Space>
 
               <Divider className="my-6" />
@@ -253,8 +277,7 @@ export default function ProductDetail() {
                   </Text>
                 </Space>
                 <Title level={3} className="m-0 !text-white italic">
-                  {(product.price * product.stock).toLocaleString()}{" "}
-                  VNĐ
+                  {(product.price * product.stock).toLocaleString()} VNĐ
                 </Title>
               </div>
             </Card>

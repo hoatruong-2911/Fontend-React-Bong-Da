@@ -1,370 +1,356 @@
-import { useState } from 'react';
-import { 
-  Card, 
-  Table, 
-  Tag, 
-  Button, 
-  Space,
-  Input,
-  Select,
-  Avatar,
-  Modal,
-  message,
-  Statistic,
+import { useEffect, useState, useMemo } from "react";
+import {
+  Table,
+  Card,
   Row,
   Col,
-  Tooltip
-} from 'antd';
+  Typography,
+  Tag,
+  Avatar,
+  Button,
+  Space,
+  message,
+  Input,
+  Tooltip,
+  Popconfirm,
+} from "antd";
 import {
-  SearchOutlined,
-  UserOutlined,
+  LeftOutlined,
+  RightOutlined,
   PlusOutlined,
-  EditOutlined,
   ExportOutlined,
-  ClockCircleOutlined
-} from '@ant-design/icons';
-import dayjs from 'dayjs';
+  UserOutlined,
+  ClockCircleOutlined,
+  SearchOutlined,
+  EyeOutlined,
+  DeleteOutlined,
+  EditOutlined,
+} from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import dayjs, { Dayjs } from "dayjs";
+import shiftService, {
+  Shift,
+  StaffSchedule,
+  WeeklyScheduleData,
+} from "@/services/admin/shiftService";
 
-// Mock shift data
-const shiftTypes = [
-  { id: 'morning', name: 'Ca sáng', time: '06:00 - 14:00', color: '#52c41a' },
-  { id: 'afternoon', name: 'Ca chiều', time: '14:00 - 22:00', color: '#1890ff' },
-  { id: 'night', name: 'Ca tối', time: '22:00 - 06:00', color: '#722ed1' },
-  { id: 'full', name: 'Ca full', time: '08:00 - 17:00', color: '#fa8c16' },
-];
+const { Title, Text } = Typography;
+const STORAGE_URL = "http://127.0.0.1:8000/storage/";
 
-const mockShiftSchedule = [
-  { 
-    id: '1', 
-    staffId: '1',
-    staffName: 'Nguyễn Văn Nam', 
-    position: 'Quản lý sân',
-    department: 'Vận hành',
-    shifts: {
-      '2024-01-15': 'morning',
-      '2024-01-16': 'afternoon',
-      '2024-01-17': 'morning',
-      '2024-01-18': 'full',
-      '2024-01-19': 'morning',
-    }
-  },
-  { 
-    id: '2', 
-    staffId: '2',
-    staffName: 'Trần Thị Hoa', 
-    position: 'Thu ngân',
-    department: 'Bán hàng',
-    shifts: {
-      '2024-01-15': 'full',
-      '2024-01-16': 'full',
-      '2024-01-17': null,
-      '2024-01-18': 'full',
-      '2024-01-19': 'full',
-    }
-  },
-  { 
-    id: '3', 
-    staffId: '3',
-    staffName: 'Lê Văn Minh', 
-    position: 'Bảo vệ',
-    department: 'An ninh',
-    shifts: {
-      '2024-01-15': 'night',
-      '2024-01-16': 'night',
-      '2024-01-17': 'night',
-      '2024-01-18': null,
-      '2024-01-19': 'night',
-    }
-  },
-  { 
-    id: '4', 
-    staffId: '4',
-    staffName: 'Phạm Thị Lan', 
-    position: 'Phục vụ',
-    department: 'F&B',
-    shifts: {
-      '2024-01-15': 'afternoon',
-      '2024-01-16': 'afternoon',
-      '2024-01-17': 'morning',
-      '2024-01-18': 'afternoon',
-      '2024-01-19': null,
-    }
-  },
-  { 
-    id: '5', 
-    staffId: '5',
-    staffName: 'Hoàng Văn Đức', 
-    position: 'Kỹ thuật',
-    department: 'Kỹ thuật',
-    shifts: {
-      '2024-01-15': 'full',
-      '2024-01-16': null,
-      '2024-01-17': 'full',
-      '2024-01-18': 'full',
-      '2024-01-19': 'morning',
-    }
-  },
-];
-
-const scheduleStats = {
-  totalShifts: 45,
-  morningShifts: 15,
-  afternoonShifts: 12,
-  nightShifts: 8,
-  fullShifts: 10,
-  offDays: 5,
+// Cấu hình mã màu ĐẬM và RỰC RỠ (Solid Colors) bám sát hình ảnh mới
+const getShiftColor = (name: string): string => {
+  const colors: Record<string, string> = {
+    "Ca sáng": "#006400", // Xanh lá đậm (Dark Green)
+    "Ca chiều": "#0000FF", // Xanh dương thuần (Pure Blue)
+    "Ca tối": "#4B0082", // Tím đậm (Indigo/Purple)
+    "Ca full": "#D2691E", // Cam đất đậm (Chocolate/Dark Orange)
+    Nghỉ: "transparent", // Để trong suốt cho chữ "Nghỉ" mờ
+  };
+  return colors[name] || "#64748b";
 };
 
-export default function ShiftsManagement() {
-  const [selectedDate, setSelectedDate] = useState(dayjs('2024-01-15'));
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export default function StaffShiftIndex() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
+  const [scheduleData, setScheduleData] = useState<WeeklyScheduleData | null>(
+    null
+  );
+  const [searchText, setSearchText] = useState<string>("");
 
-  const getShiftTag = (shiftId: string | null) => {
-    if (!shiftId) return <Tag>Nghỉ</Tag>;
-    const shift = shiftTypes.find(s => s.id === shiftId);
-    if (!shift) return null;
-    return (
-      <Tooltip title={shift.time}>
-        <Tag color={shift.color} className="cursor-pointer">{shift.name}</Tag>
-      </Tooltip>
-    );
+  const fetchSchedule = async (date: Dayjs): Promise<void> => {
+    try {
+      setLoading(true);
+      const res = await shiftService.getWeeklyAssignments(
+        date.format("YYYY-MM-DD")
+      );
+      if (res.success) {
+        setScheduleData(res.data);
+      }
+    } catch (error: unknown) {
+      message.error("Không thể tải lịch làm việc");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Generate date columns for the week
-  const weekDates = Array.from({ length: 7 }, (_, i) => 
-    selectedDate.startOf('week').add(i, 'day')
-  );
+  useEffect(() => {
+    fetchSchedule(currentDate);
+  }, [currentDate]);
+
+  const weekDays = useMemo((): Dayjs[] => {
+    const start = currentDate.startOf("week");
+    return Array.from({ length: 7 }).map((_, i) => start.add(i + 1, "day"));
+  }, [currentDate]);
+
+  const filteredStaff = useMemo((): StaffSchedule[] => {
+    if (!scheduleData) return [];
+    return scheduleData.staff_schedules.filter((s) =>
+      s.name.toLowerCase().includes(searchText.toLowerCase())
+    );
+  }, [scheduleData, searchText]);
+
+  const handleOpenEditModal = (record: StaffSchedule) => {
+    console.log("Mở modal sửa cho:", record.name);
+    message.info("Chức năng sửa ca đang được tích hợp");
+  };
+
+  const handleDeleteStaffAssignments = async (
+    staffId: number
+  ): Promise<void> => {
+    try {
+      message.loading("Đang xử lý...");
+      message.success("Đã xóa lịch làm việc thành công");
+      fetchSchedule(currentDate);
+    } catch (error) {
+      message.error("Không thể xóa lịch làm việc");
+    }
+  };
 
   const columns = [
-    { 
-      title: 'Nhân viên', 
-      key: 'staff',
-      fixed: 'left' as const,
-      width: 200,
-      render: (_: unknown, record: typeof mockShiftSchedule[0]) => (
-        <div className="flex items-center gap-3">
-          <Avatar icon={<UserOutlined />} className="bg-primary" />
-          <div>
-            <div className="font-medium">{record.staffName}</div>
-            <div className="text-sm text-muted-foreground">{record.position}</div>
-          </div>
-        </div>
-      )
-    },
-    ...weekDates.map(date => ({
+    {
       title: (
-        <div className="text-center">
-          <div className="text-xs text-muted-foreground">{date.format('ddd')}</div>
-          <div className={date.isSame(dayjs(), 'day') ? 'font-bold text-primary' : ''}>
-            {date.format('DD/MM')}
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          NHÂN VIÊN
+        </span>
+      ),
+      key: "staff",
+      fixed: "left" as const,
+      width: 220,
+      render: (record: StaffSchedule) => (
+        <Space size="middle">
+          <Avatar
+            size={40}
+            src={record.avatar ? `${STORAGE_URL}${record.avatar}` : undefined}
+            icon={<UserOutlined />}
+            className="border border-blue-100 shadow-sm"
+          />
+          <div className="flex flex-col">
+            <Text className="text-[13px] font-black text-gray-800 uppercase italic leading-tight">
+              {record.name}
+            </Text>
+            <Text className="text-[10px] text-blue-500 font-bold uppercase">
+              {record.department?.name || "N/A"}
+            </Text>
+          </div>
+        </Space>
+      ),
+    },
+    ...weekDays.map((day) => ({
+      title: (
+        <div className="text-center py-1">
+          <div className="text-[10px] text-gray-400 font-black uppercase italic">
+            T{day.day() === 0 ? "8" : day.day() + 1}
+          </div>
+          <div className="text-[12px] font-bold text-blue-900">
+            {day.format("DD/MM")}
           </div>
         </div>
       ),
-      key: date.format('YYYY-MM-DD'),
-      width: 100,
-      render: (_: unknown, record: typeof mockShiftSchedule[0]) => {
-        const dateKey = date.format('YYYY-MM-DD');
-        const shiftId = record.shifts[dateKey as keyof typeof record.shifts];
-        return (
-          <div className="text-center">
-            {getShiftTag(shiftId as string | null)}
-          </div>
+      key: day.format("YYYY-MM-DD"),
+      align: "center" as const,
+      render: (record: StaffSchedule) => {
+        const dateStr = day.format("YYYY-MM-DD");
+        const assignment = record.assignments.find(
+          (a) => a.work_date === dateStr
         );
-      }
+
+        if (assignment && assignment.shift) {
+          const bgColor = getShiftColor(assignment.shift.name);
+          return (
+            <Tag
+              className="border-none rounded-full px-4 py-1 font-black italic text-[10px] m-0 shadow-md"
+              style={{
+                backgroundColor: bgColor,
+                color: "#fff",
+                minWidth: "80px",
+                textAlign: "center",
+              }}
+            >
+              {assignment.shift.name.toUpperCase()}
+            </Tag>
+          );
+        }
+        return (
+          <Text className="text-gray-300 font-black italic uppercase text-[10px]">
+            NGHỈ
+          </Text>
+        );
+      },
     })),
     {
-      title: 'Thao tác',
-      key: 'actions',
-      width: 80,
-      render: () => (
-        <Button icon={<EditOutlined />} size="small" type="link">Sửa</Button>
-      )
+      title: (
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          THAO TÁC
+        </span>
+      ),
+      key: "action",
+      align: "right" as const,
+      fixed: "right" as const,
+      width: 140,
+      render: (record: StaffSchedule) => (
+        <Space size="small">
+          <Tooltip title="Xem chi tiết">
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              className="flex items-center justify-center rounded-md border-gray-300 text-blue-500 hover:text-blue-600 hover:border-blue-500 shadow-sm"
+              onClick={() => navigate(`/admin/shifts/${record.id}`)}
+            />
+          </Tooltip>
+          <Tooltip title="Chỉnh sửa">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              size="small"
+              className="flex items-center justify-center rounded-md shadow-sm bg-blue-600 border-blue-600 hover:bg-blue-700"
+              onClick={() => navigate(`/admin/shifts/edit/${record.id}`)}
+            />
+          </Tooltip>
+          <Popconfirm
+            title="Xóa lịch làm?"
+            description={`Xóa toàn bộ phân ca trong tuần của ${record.name}?`}
+            onConfirm={() => handleDeleteStaffAssignments(record.id)}
+            okText="Xóa"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true }}
+          >
+            <Tooltip title="Xóa">
+              <Button
+                danger
+                type="primary"
+                icon={<DeleteOutlined />}
+                size="small"
+                className="flex items-center justify-center rounded-md shadow-sm"
+              />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
+      ),
     },
   ];
 
-  const handleAddShift = () => {
-    message.success('Đã thêm ca làm việc!');
-    setIsModalOpen(false);
-  };
-
-  const handleExport = () => {
-    message.success('Đã xuất báo cáo lịch ca!');
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Shift Types Legend */}
-      <Card className="border-0 shadow-md">
-        <div className="flex flex-wrap items-center gap-6">
-          <span className="font-medium">Loại ca:</span>
-          {shiftTypes.map(shift => (
-            <div key={shift.id} className="flex items-center gap-2">
-              <Tag color={shift.color}>{shift.name}</Tag>
-              <span className="text-sm text-muted-foreground">{shift.time}</span>
-            </div>
+    <div className="p-8 bg-[#064e3b] min-h-screen space-y-8">
+      {/* Legend Card */}
+      <Card className="rounded-2xl border-none shadow-xl bg-white/95">
+        <Space size="large" wrap>
+          <Text className="text-gray-400 font-black italic text-[11px] uppercase tracking-widest">
+            LOẠI CA:
+          </Text>
+          {scheduleData?.shifts.map((s: Shift) => (
+            <Space
+              key={s.id}
+              size={6}
+              className="bg-gray-50 px-3 py-1 rounded-full border border-gray-100"
+            >
+              <div
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: getShiftColor(s.name) }}
+              />
+              <Text className="text-[11px] font-black text-gray-600 uppercase">
+                {s.name}:{" "}
+                <span className="text-blue-600 font-black">
+                  {s.start_time.substring(0, 5)} - {s.end_time.substring(0, 5)}
+                </span>
+              </Text>
+            </Space>
           ))}
-        </div>
+        </Space>
       </Card>
 
-      {/* Stats */}
-      <Row gutter={[16, 16]}>
-        <Col xs={12} sm={8} md={4}>
-          <Card size="small" className="text-center">
-            <Statistic
-              title="Tổng ca tuần này"
-              value={scheduleStats.totalShifts}
-              prefix={<ClockCircleOutlined />}
-            />
+      {/* Stats Section */}
+      <Row gutter={[20, 20]}>
+        <Col xs={24} sm={12} lg={4}>
+          <Card className="rounded-[24px] border-none shadow-lg text-center bg-white border-t-4 border-blue-600">
+            <Text className="text-gray-400 font-black text-[10px] uppercase italic">
+              TỔNG CA TUẦN NÀY
+            </Text>
+            <div className="flex items-center justify-center gap-3 mt-2">
+              <ClockCircleOutlined className="text-3xl text-gray-800" />
+              <Title level={2} className="m-0! italic font-black text-gray-900">
+                {scheduleData?.stats.total_week || 0}
+              </Title>
+            </div>
           </Card>
         </Col>
-        <Col xs={12} sm={8} md={4}>
-          <Card size="small" className="text-center" style={{ borderLeft: '3px solid #52c41a' }}>
-            <Statistic
-              title="Ca sáng"
-              value={scheduleStats.morningShifts}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} md={4}>
-          <Card size="small" className="text-center" style={{ borderLeft: '3px solid #1890ff' }}>
-            <Statistic
-              title="Ca chiều"
-              value={scheduleStats.afternoonShifts}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} md={4}>
-          <Card size="small" className="text-center" style={{ borderLeft: '3px solid #722ed1' }}>
-            <Statistic
-              title="Ca tối"
-              value={scheduleStats.nightShifts}
-              valueStyle={{ color: '#722ed1' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} md={4}>
-          <Card size="small" className="text-center" style={{ borderLeft: '3px solid #fa8c16' }}>
-            <Statistic
-              title="Ca full"
-              value={scheduleStats.fullShifts}
-              valueStyle={{ color: '#fa8c16' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={8} md={4}>
-          <Card size="small" className="text-center bg-gray-50 dark:bg-gray-800">
-            <Statistic
-              title="Ngày nghỉ"
-              value={scheduleStats.offDays}
-              valueStyle={{ color: '#8c8c8c' }}
-            />
-          </Card>
-        </Col>
+        {scheduleData?.shifts.map((s: Shift) => (
+          <Col xs={24} sm={12} lg={4} key={s.id}>
+            <Card
+              className="rounded-[24px] border-none shadow-lg relative overflow-hidden text-center bg-white border-t-4"
+              style={{ borderTopColor: getShiftColor(s.name) }}
+            >
+              <Text className="text-gray-400 font-black text-[10px] uppercase italic">
+                {s.name}
+              </Text>
+              <Title
+                level={2}
+                style={{ color: getShiftColor(s.name) }}
+                className="m-0! mt-2 italic font-black"
+              >
+                {scheduleData?.stats.counts[s.name] || 0}
+              </Title>
+            </Card>
+          </Col>
+        ))}
       </Row>
 
-      {/* Table */}
-      <Card className="border-0 shadow-md">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <Space wrap>
-            <Button.Group>
-              <Button onClick={() => setSelectedDate(d => d.subtract(1, 'week'))}>
-                ← Tuần trước
+      <Card className="rounded-[32px] border-none shadow-2xl overflow-hidden bg-white/95">
+        <div className="p-6 flex flex-wrap justify-between items-center gap-4 border-b border-gray-100">
+          <Space wrap size="middle">
+            <Button.Group className="rounded-xl overflow-hidden shadow-sm">
+              <Button
+                icon={<LeftOutlined />}
+                onClick={() =>
+                  setCurrentDate((prev) => prev.subtract(1, "week"))
+                }
+              />
+              <Button
+                onClick={() => setCurrentDate(dayjs())}
+                className="font-black uppercase italic text-[11px] bg-gray-50"
+              >
+                TUẦN NÀY
               </Button>
-              <Button onClick={() => setSelectedDate(dayjs())}>
-                Tuần này
-              </Button>
-              <Button onClick={() => setSelectedDate(d => d.add(1, 'week'))}>
-                Tuần sau →
-              </Button>
+              <Button
+                icon={<RightOutlined />}
+                onClick={() => setCurrentDate((prev) => prev.add(1, "week"))}
+              />
             </Button.Group>
             <Input
               placeholder="Tìm kiếm nhân viên..."
-              prefix={<SearchOutlined />}
-              className="w-64"
+              prefix={<SearchOutlined className="text-blue-500" />}
+              className="w-72 rounded-xl h-10 border-gray-100 shadow-inner font-bold"
+              onChange={(e) => setSearchText(e.target.value)}
             />
-            <Select defaultValue="all" className="w-40">
-              <Select.Option value="all">Tất cả phòng ban</Select.Option>
-              <Select.Option value="operation">Vận hành</Select.Option>
-              <Select.Option value="sales">Bán hàng</Select.Option>
-              <Select.Option value="security">An ninh</Select.Option>
-              <Select.Option value="fnb">F&B</Select.Option>
-              <Select.Option value="tech">Kỹ thuật</Select.Option>
-            </Select>
           </Space>
-          <Space>
-            <Button icon={<PlusOutlined />} type="primary" onClick={() => setIsModalOpen(true)}>
-              Thêm ca làm
+          <Space size="middle">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate("/admin/shifts/add")}
+              className="h-11 px-8 rounded-2xl bg-blue-700 border-none font-black italic uppercase shadow-xl hover:scale-105 transition-all"
+            >
+              THÊM CA LÀM
             </Button>
-            <Button icon={<ExportOutlined />} onClick={handleExport}>
-              Xuất báo cáo
+            <Button
+              icon={<ExportOutlined />}
+              className="rounded-2xl h-11 px-6 font-black uppercase italic text-[11px] border-gray-300 shadow-sm"
+            >
+              XUẤT BÁO CÁO
             </Button>
           </Space>
-        </div>
-
-        <div className="mb-4 p-3 bg-muted/50 rounded-lg">
-          <span className="font-medium">
-            Tuần: {weekDates[0].format('DD/MM/YYYY')} - {weekDates[6].format('DD/MM/YYYY')}
-          </span>
         </div>
 
         <Table
-          dataSource={mockShiftSchedule}
           columns={columns}
+          dataSource={filteredStaff}
           rowKey="id"
+          loading={loading}
           pagination={false}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1300 }}
+          className="staff-shift-table custom-table-bold"
         />
       </Card>
-
-      {/* Modal */}
-      <Modal
-        title="Thêm ca làm việc"
-        open={isModalOpen}
-        onOk={handleAddShift}
-        onCancel={() => setIsModalOpen(false)}
-        okText="Lưu"
-        cancelText="Hủy"
-        width={500}
-      >
-        <div className="space-y-4 mt-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Nhân viên</label>
-            <Select placeholder="Chọn nhân viên" className="w-full" mode="multiple">
-              <Select.Option value="1">Nguyễn Văn Nam</Select.Option>
-              <Select.Option value="2">Trần Thị Hoa</Select.Option>
-              <Select.Option value="3">Lê Văn Minh</Select.Option>
-              <Select.Option value="4">Phạm Thị Lan</Select.Option>
-              <Select.Option value="5">Hoàng Văn Đức</Select.Option>
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Loại ca</label>
-            <Select placeholder="Chọn loại ca" className="w-full">
-              {shiftTypes.map(shift => (
-                <Select.Option key={shift.id} value={shift.id}>
-                  <Tag color={shift.color}>{shift.name}</Tag> {shift.time}
-                </Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Ngày áp dụng</label>
-            <Select placeholder="Chọn ngày" className="w-full" mode="multiple">
-              {weekDates.map(date => (
-                <Select.Option key={date.format('YYYY-MM-DD')} value={date.format('YYYY-MM-DD')}>
-                  {date.format('dddd, DD/MM/YYYY')}
-                </Select.Option>
-              ))}
-            </Select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Ghi chú</label>
-            <Input.TextArea rows={2} placeholder="Ghi chú (không bắt buộc)" />
-          </div>
-        </div>
-      </Modal>
     </div>
   );
 }

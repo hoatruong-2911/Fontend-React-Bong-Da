@@ -108,7 +108,36 @@ export default function AdminLayout() {
       ],
     },
 
-    { key: "/admin/staff", icon: <TeamOutlined />, label: "Quản lý nhân viên" },
+    // NHÓM Quản Lý nhân viên
+    {
+      key: "group-staff",
+      icon: <TeamOutlined />,
+      label: "Quản lý Nhân viên",
+      children: [
+        {
+          key: "/admin/staff",
+          icon: <TeamOutlined />,
+          label: "nhân viên",
+        },
+        {
+          key: "/admin/Departments",
+          icon: <ScheduleOutlined />,
+          label: "Phòng Ban",
+        },
+
+        {
+          key: "/admin/attendance",
+          icon: <ClockCircleOutlined />,
+          label: "Chấm công",
+        },
+        {
+          key: "/admin/shifts",
+          icon: <ScheduleOutlined />,
+          label: "Lịch ca làm",
+        },
+      ],
+    },
+
     {
       key: "/admin/customers",
       icon: <UserOutlined />,
@@ -116,12 +145,7 @@ export default function AdminLayout() {
     },
     { key: "/admin/user", icon: <UserOutlined />, label: "Quản lý tài khoản" },
     { key: "d1", type: "divider" as const },
-    {
-      key: "/admin/attendance",
-      icon: <ClockCircleOutlined />,
-      label: "Chấm công",
-    },
-    { key: "/admin/shifts", icon: <ScheduleOutlined />, label: "Lịch ca làm" },
+
     {
       key: "/admin/revenue",
       icon: <BarChartOutlined />,

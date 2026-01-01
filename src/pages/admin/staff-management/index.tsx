@@ -1,230 +1,377 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Card, 
-  Table, 
-  Tag, 
-  Button, 
+import { useEffect, useState, useMemo } from "react";
+import {
+  Table,
+  Button,
   Space,
-  Input,
-  Select,
-  Avatar,
+  Card,
+  Tag,
+  Typography,
   message,
-  Statistic,
   Row,
   Col,
-  Popconfirm
-} from 'antd';
+  Avatar,
+  Input,
+  Popconfirm,
+  Tooltip,
+  Select,
+} from "antd";
 import {
-  SearchOutlined,
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   EyeOutlined,
-  ExportOutlined,
   UserOutlined,
+  SearchOutlined,
   PhoneOutlined,
   MailOutlined,
+  BankOutlined,
+  ThunderboltOutlined,
   TeamOutlined,
-} from '@ant-design/icons';
+  CheckCircleOutlined,
+  ApartmentOutlined,
+} from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import staffService, { Staff } from "@/services/admin/staffService";
 
-const mockStaffList = [
-  { id: '1', name: 'Nguyễn Văn Nam', phone: '0901111111', email: 'nam@stadium.com', position: 'Quản lý sân', department: 'Vận hành', status: 'active', salary: 12000000 },
-  { id: '2', name: 'Trần Thị Hoa', phone: '0902222222', email: 'hoa@stadium.com', position: 'Thu ngân', department: 'Bán hàng', status: 'active', salary: 8000000 },
-  { id: '3', name: 'Lê Văn Minh', phone: '0903333333', email: 'minh@stadium.com', position: 'Bảo vệ', department: 'An ninh', status: 'active', salary: 7000000 },
-  { id: '4', name: 'Phạm Thị Lan', phone: '0904444444', email: 'lan@stadium.com', position: 'Phục vụ', department: 'F&B', status: 'off', salary: 6500000 },
-  { id: '5', name: 'Hoàng Văn Đức', phone: '0905555555', email: 'duc@stadium.com', position: 'Kỹ thuật', department: 'Kỹ thuật', status: 'active', salary: 10000000 },
-];
+const { Title, Text } = Typography;
 
-const dailyStats = {
-  totalStaff: mockStaffList.length,
-  activeStaff: mockStaffList.filter(s => s.status === 'active').length,
-  offStaff: mockStaffList.filter(s => s.status === 'off').length,
-  departments: 5,
-};
+const STORAGE_URL = "http://127.0.0.1:8000/storage/";
 
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
-};
-
-const getStatusTag = (status: string) => {
-  const statusMap: Record<string, { color: string; text: string }> = {
-    active: { color: 'green', text: 'Hoạt động' },
-    inactive: { color: 'default', text: 'Không hoạt động' },
-    off: { color: 'orange', text: 'Nghỉ phép' },
-  };
-  const { color, text } = statusMap[status] || { color: 'default', text: status };
-  return <Tag color={color}>{text}</Tag>;
-};
-
-export default function StaffManagement() {
+export default function StaffIndex() {
+  const [staffs, setStaffs] = useState<Staff[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchText, setSearchText] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
   const navigate = useNavigate();
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
 
-  const handleDelete = (id: string) => {
-    message.success(`Đã xóa nhân viên #${id}`);
+  const fetchStaffs = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const res = await staffService.getStaffs();
+      setStaffs(res.data || []);
+    } catch (error: unknown) {
+      message.error("Không thể tải danh sách nhân viên");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleExport = () => {
-    message.success('Đã xuất báo cáo nhân viên!');
-  };
+  useEffect(() => {
+    fetchStaffs();
+  }, []);
+
+  const filteredData = useMemo(() => {
+    return staffs.filter((item) => {
+      const matchSearch = item.name
+        .toLowerCase()
+        .includes(searchText.toLowerCase());
+      const matchStatus =
+        filterStatus === "all" || item.status === filterStatus;
+      return matchSearch && matchStatus;
+    });
+  }, [staffs, searchText, filterStatus]);
+
+  const stats = useMemo(
+    () => ({
+      total: staffs.length,
+      active: staffs.filter((s) => s.status === "active").length,
+      off: staffs.filter((s) => s.status === "off").length,
+      depts: new Set(staffs.map((s) => s.department_id)).size,
+    }),
+    [staffs]
+  );
 
   const columns = [
-    { 
-      title: 'Nhân viên', 
-      key: 'staff',
-      render: (_: unknown, record: typeof mockStaffList[0]) => (
-        <div className="flex items-center gap-3">
-          <Avatar icon={<UserOutlined />} className="bg-primary" />
-          <div>
-            <div className="font-medium">{record.name}</div>
-            <div className="text-sm text-muted-foreground">{record.position}</div>
+    {
+      title: (
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          Nhân viên
+        </span>
+      ),
+      key: "employee",
+      render: (record: Staff) => (
+        <Space size="middle">
+          <Avatar
+            size={54}
+            src={record.avatar ? `${STORAGE_URL}${record.avatar}` : undefined}
+            icon={<UserOutlined />}
+            className="border-2 border-blue-100 shadow-sm bg-gradient-to-tr from-blue-50 to-white"
+          />
+          <div className="flex flex-col">
+            <Text className="text-[15px] font-black text-gray-800 uppercase italic leading-tight">
+              {record.name}
+            </Text>
+            <Tag
+              color="blue"
+              className="w-fit mt-1 border-none text-[10px] font-bold px-2 rounded-md"
+            >
+              {record.position}
+            </Tag>
           </div>
-        </div>
-      )
-    },
-    { title: 'Phòng ban', dataIndex: 'department', key: 'department' },
-    { 
-      title: 'Liên hệ', 
-      key: 'contact',
-      render: (_: unknown, record: typeof mockStaffList[0]) => (
-        <div className="text-sm">
-          <div className="flex items-center gap-1"><PhoneOutlined /> {record.phone}</div>
-          <div className="flex items-center gap-1"><MailOutlined /> {record.email}</div>
-        </div>
-      )
-    },
-    { 
-      title: 'Lương', 
-      dataIndex: 'salary', 
-      key: 'salary',
-      render: (salary: number) => formatCurrency(salary)
-    },
-    { 
-      title: 'Trạng thái', 
-      dataIndex: 'status', 
-      key: 'status',
-      render: (status: string) => getStatusTag(status)
+        </Space>
+      ),
     },
     {
-      title: 'Thao tác',
-      key: 'actions',
-      render: (_: unknown, record: typeof mockStaffList[0]) => (
-        <Space>
-          <Button 
-            icon={<EyeOutlined />} 
-            size="small"
-            onClick={() => navigate(`/admin/staff/${record.id}`)}
-          />
-          <Button 
-            icon={<EditOutlined />} 
-            size="small" 
-            type="primary"
-            onClick={() => navigate(`/admin/staff/${record.id}/edit`)}
-          />
+      title: (
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          Phòng ban
+        </span>
+      ),
+      key: "department",
+      render: (record: Staff) => (
+        <Space className="bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+          <BankOutlined className="text-blue-500" />
+          <Text className="text-gray-600 font-medium">
+            {record.department?.name || "N/A"}
+          </Text>
+        </Space>
+      ),
+    },
+    {
+      title: (
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          Liên hệ
+        </span>
+      ),
+      key: "contact",
+      render: (record: Staff) => (
+        <div className="flex flex-col gap-1">
+          <Text className="text-[13px] text-gray-500">
+            <PhoneOutlined className="text-green-500 mr-2" />
+            {record.phone}
+          </Text>
+          <Text className="text-[13px] text-gray-500">
+            <MailOutlined className="text-red-400 mr-2" />
+            {record.email}
+          </Text>
+        </div>
+      ),
+    },
+    {
+      title: (
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          Trạng thái
+        </span>
+      ),
+      dataIndex: "status",
+      align: "center" as const,
+      render: (status: string) => {
+        // Chuyển từ Select sang Tag tĩnh (Read-only)
+        const config = {
+          active: { color: "#10b981", text: "HOẠT ĐỘNG" },
+          off: { color: "#f59e0b", text: "NGHỈ PHÉP" },
+          inactive: { color: "#ef4444", text: "ĐÃ NGHỈ" },
+        };
+        const current = config[status as keyof typeof config] || config.active;
+        return (
+          <Tag
+            color={current.color}
+            className="border-none font-black italic rounded-full px-4 text-[10px] py-1 text-white shadow-sm"
+          >
+            {current.text}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: (
+        <span className="text-blue-700 font-bold uppercase text-[12px]">
+          Thao tác
+        </span>
+      ),
+      align: "right" as const,
+      render: (record: Staff) => (
+        <Space size="small">
+          <Tooltip title="Xem chi tiết">
+            <Button
+              icon={<EyeOutlined />}
+              size="small"
+              className="flex items-center justify-center rounded-md border-gray-300 text-blue-500 hover:text-blue-600 hover:border-blue-500"
+              onClick={() => navigate(`${record.id}`)}
+            />
+          </Tooltip>
+
+          <Tooltip title="Chỉnh sửa">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              size="small"
+              className="flex items-center justify-center rounded-md shadow-sm bg-blue-600"
+              onClick={() => navigate(`edit/${record.id}`)}
+            />
+          </Tooltip>
+
           <Popconfirm
-            title="Xác nhận xóa"
-            description="Bạn có chắc chắn muốn xóa nhân viên này?"
-            onConfirm={() => handleDelete(record.id)}
+            title="Xóa nhân viên này?"
+            onConfirm={async () => {
+              try {
+                await staffService.deleteStaff(record.id);
+                message.success("Đã xóa nhân viên thành công");
+                fetchStaffs();
+              } catch (error: unknown) {
+                message.error("Không thể xóa nhân viên này");
+              }
+            }}
             okText="Xóa"
             cancelText="Hủy"
+            okButtonProps={{ danger: true }}
           >
-            <Button icon={<DeleteOutlined />} size="small" danger />
+            <Tooltip title="Xóa">
+              <Button
+                danger
+                type="primary"
+                icon={<DeleteOutlined />}
+                size="small"
+                className="flex items-center justify-center rounded-md shadow-sm"
+              />
+            </Tooltip>
           </Popconfirm>
         </Space>
-      )
+      ),
     },
   ];
 
-  const filteredStaff = mockStaffList.filter(staff => {
-    const matchSearch = staff.name.toLowerCase().includes(searchText.toLowerCase());
-    const matchStatus = statusFilter === 'all' || staff.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
   return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <Row gutter={[16, 16]}>
-        <Col xs={12} sm={6}>
-          <Card size="small" className="text-center">
-            <Statistic
-              title="Tổng nhân viên"
-              value={dailyStats.totalStaff}
-              prefix={<TeamOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
+    <div className="p-8 bg-[#f8fafc] min-h-screen space-y-8 animate-in fade-in duration-700">
+      {/* Header Section */}
+      <div className="flex justify-between items-end mb-4">
+        <div>
+          <Title
+            level={2}
+            className="m-0! font-black italic text-blue-900 uppercase tracking-tighter"
+          >
+            Quản lý nhân sự
+          </Title>
+          <Text className="text-gray-400">
+            Xem danh sách và quản lý thông tin nhân viên chuyên nghiệp
+          </Text>
+        </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          className="h-12 px-8 rounded-2xl bg-gradient-to-r from-blue-700 to-blue-500 border-none font-bold shadow-lg shadow-blue-200 uppercase italic flex items-center"
+          onClick={() => navigate("add")}
+        >
+          Thêm nhân viên mới
+        </Button>
+      </div>
+
+      {/* Stats Section */}
+      <Row gutter={[24, 24]}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="rounded-[24px] border-none shadow-sm bg-gradient-to-br from-blue-600 to-blue-400 p-2">
+            <div className="flex justify-between items-center text-white">
+              <div>
+                <Text className="text-blue-100 block font-bold text-[10px] uppercase">
+                  Tổng nhân viên
+                </Text>
+                <Title level={2} className="text-white! m-0 italic font-black">
+                  {stats.total}
+                </Title>
+              </div>
+              <TeamOutlined className="text-4xl opacity-20" />
+            </div>
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" className="text-center bg-green-50 dark:bg-green-900/20">
-            <Statistic
-              title="Đang làm việc"
-              value={dailyStats.activeStaff}
-              valueStyle={{ color: '#52c41a' }}
-            />
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="rounded-[24px] border-none shadow-sm bg-white p-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <Text className="text-gray-400 block font-bold text-[10px] uppercase">
+                  Đang làm việc
+                </Text>
+                <Title
+                  level={2}
+                  className="text-green-500! m-0 italic font-black"
+                >
+                  {stats.active}
+                </Title>
+              </div>
+              <CheckCircleOutlined className="text-4xl text-green-100" />
+            </div>
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" className="text-center bg-amber-50 dark:bg-amber-900/20">
-            <Statistic
-              title="Nghỉ phép"
-              value={dailyStats.offStaff}
-              valueStyle={{ color: '#faad14' }}
-            />
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="rounded-[24px] border-none shadow-sm bg-white p-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <Text className="text-gray-400 block font-bold text-[10px] uppercase">
+                  Nghỉ phép
+                </Text>
+                <Title
+                  level={2}
+                  className="text-orange-500! m-0 italic font-black"
+                >
+                  {stats.off}
+                </Title>
+              </div>
+              <ThunderboltOutlined className="text-4xl text-orange-100" />
+            </div>
           </Card>
         </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" className="text-center bg-blue-50 dark:bg-blue-900/20">
-            <Statistic
-              title="Phòng ban"
-              value={dailyStats.departments}
-              valueStyle={{ color: '#1890ff' }}
-            />
+        <Col xs={24} sm={12} lg={6}>
+          <Card className="rounded-[24px] border-none shadow-sm bg-white p-2">
+            <div className="flex justify-between items-center">
+              <div>
+                <Text className="text-gray-400 block font-bold text-[10px] uppercase">
+                  Phòng ban
+                </Text>
+                <Title
+                  level={2}
+                  className="text-indigo-500! m-0 italic font-black"
+                >
+                  {stats.depts}
+                </Title>
+              </div>
+              <ApartmentOutlined className="text-4xl text-indigo-100" />
+            </div>
           </Card>
         </Col>
       </Row>
 
-      {/* Table */}
-      <Card className="border-0 shadow-md">
-        <div className="flex flex-wrap justify-between items-center gap-4 mb-4">
-          <Space wrap>
+      {/* Table Section */}
+      <Card className="rounded-[32px] border-none shadow-xl overflow-hidden p-2 bg-white">
+        <div className="p-4 flex flex-wrap justify-between items-center bg-gray-50/50 rounded-t-[24px] gap-4">
+          <Space wrap size="middle">
             <Input
               placeholder="Tìm kiếm nhân viên..."
-              prefix={<SearchOutlined />}
-              className="w-64"
-              value={searchText}
+              prefix={<SearchOutlined className="text-blue-500" />}
+              className="w-80 rounded-xl h-10 border-gray-200 shadow-sm"
               onChange={(e) => setSearchText(e.target.value)}
             />
-            <Select 
-              value={statusFilter}
-              onChange={setStatusFilter}
-              className="w-40"
-            >
-              <Select.Option value="all">Tất cả</Select.Option>
-              <Select.Option value="active">Đang làm</Select.Option>
-              <Select.Option value="off">Nghỉ phép</Select.Option>
-            </Select>
+            <Select
+              defaultValue="all"
+              className="w-44"
+              size="large"
+              onChange={(val) => setFilterStatus(val)}
+              options={[
+                { value: "all", label: "Tất cả trạng thái" },
+                { value: "active", label: "Đang hoạt động" },
+                { value: "off", label: "Nghỉ phép" },
+                { value: "inactive", label: "Đã nghỉ" },
+              ]}
+              dropdownStyle={{ borderRadius: "12px" }}
+            />
           </Space>
-          <Space>
-            <Button icon={<ExportOutlined />} onClick={handleExport}>
-              Xuất Excel
-            </Button>
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={() => navigate('/admin/staff/add')}
-            >
-              Thêm nhân viên
-            </Button>
-          </Space>
+          <div className="px-4 py-2 bg-blue-50 rounded-lg">
+            <Text className="text-[11px] font-black text-blue-700 uppercase italic">
+              Hiển thị {filteredData.length} kết quả
+            </Text>
+          </div>
         </div>
+
         <Table
-          dataSource={filteredStaff}
           columns={columns}
+          dataSource={filteredData}
           rowKey="id"
-          pagination={{ pageSize: 10 }}
+          loading={loading}
+          pagination={{
+            pageSize: 7,
+            className: "px-6 py-4",
+            showTotal: (total) => `Tổng số ${total} nhân viên`,
+          }}
+          className="staff-table"
         />
       </Card>
     </div>

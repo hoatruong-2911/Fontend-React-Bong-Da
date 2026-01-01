@@ -19,6 +19,7 @@ import {
   ArrowLeftOutlined,
   SaveOutlined,
   ShoppingCartOutlined,
+  LinkOutlined, // Thêm icon cho Slug
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import productService from "@/services/admin/productService";
@@ -45,6 +46,27 @@ export default function ProductAdd() {
     };
     loadData();
   }, []);
+
+  // Hàm tạo Slug tự động từ tên tiếng Việt
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[đĐ]/g, "d")
+      .replace(/([^0-9a-z-\s])/g, "")
+      .replace(/(\s+)/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  };
+
+  // Xử lý khi gõ tên sản phẩm
+  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nameValue = e.target.value;
+    form.setFieldsValue({
+      slug: generateSlug(nameValue),
+    });
+  };
 
   const onFinish = async (values: any) => {
     try {
@@ -93,6 +115,7 @@ export default function ProductAdd() {
         >
           <Row gutter={24}>
             <Col xs={24} md={16}>
+              {/* Tên sản phẩm */}
               <Form.Item
                 name="name"
                 label={
@@ -100,14 +123,42 @@ export default function ProductAdd() {
                     Tên sản phẩm
                   </Text>
                 }
-                rules={[{ required: true }]}
+                rules={[{ required: true, message: "Vui lòng nhập tên!" }]}
               >
                 <Input
                   size="large"
                   placeholder="VD: Giày đá bóng Nike Mercurial..."
                   className="rounded-xl"
+                  onChange={handleNameChange} // Gắn sự kiện tạo slug
                 />
               </Form.Item>
+
+              {/* Ô Slug mới thêm vào */}
+              <Form.Item
+                name="slug"
+                label={
+                  <Space>
+                    <Text
+                      strong
+                      className="text-blue-700 uppercase text-[11px]"
+                    >
+                      Đường dẫn (Slug)
+                    </Text>
+                    <LinkOutlined className="text-blue-400" />
+                  </Space>
+                }
+                rules={[
+                  { required: true, message: "Slug không được để trống!" },
+                ]}
+              >
+                <Input
+                  size="large"
+                  placeholder="ten-san-pham-tu-dong"
+                  className="rounded-xl bg-blue-50/30"
+                  addonBefore="/"
+                />
+              </Form.Item>
+
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item

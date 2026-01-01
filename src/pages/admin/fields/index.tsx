@@ -66,7 +66,7 @@ export default function FieldsManagement() {
     fetchFields();
   }, []);
 
-  // 2. Tính toán thống kê (Sửa logic khớp DB)
+  // 2. Tính toán thống kê ( logic khớp DB)
   const stats = useMemo(() => {
     const total = fields.length;
     // Database dùng available là 1/0
