@@ -117,6 +117,18 @@ const shiftService = {
     const res = await api.get(`/admin/shift-assignments/${id}`);
     return res.data;
   },
+
+  // Thêm hàm xóa hàng loạt
+  removeStaffWeeklyAssignments: async (
+    staffId: number,
+    startDate: string,
+    endDate: string
+  ) => {
+    const res = await api.delete(`/admin/staff-assignments/bulk/${staffId}`, {
+      params: { start_date: startDate, end_date: endDate },
+    });
+    return res.data;
+  },
 };
 
 export default shiftService;

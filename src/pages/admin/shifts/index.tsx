@@ -28,23 +28,23 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
+// Import thêm locale tiếng Việt để ép Thứ 2 làm đầu tuần
+import "dayjs/locale/vi";
 import shiftService, {
   Shift,
-  StaffSchedule,
   WeeklyScheduleData,
 } from "@/services/admin/shiftService";
 
 const { Title, Text } = Typography;
 const STORAGE_URL = "http://127.0.0.1:8000/storage/";
 
-// Cấu hình mã màu ĐẬM và RỰC RỠ (Solid Colors) bám sát hình ảnh mới
 const getShiftColor = (name: string): string => {
   const colors: Record<string, string> = {
-    "Ca sáng": "#006400", // Xanh lá đậm (Dark Green)
-    "Ca chiều": "#0000FF", // Xanh dương thuần (Pure Blue)
-    "Ca tối": "#4B0082", // Tím đậm (Indigo/Purple)
-    "Ca full": "#D2691E", // Cam đất đậm (Chocolate/Dark Orange)
-    Nghỉ: "transparent", // Để trong suốt cho chữ "Nghỉ" mờ
+    "Ca sáng": "#006400",
+    "Ca chiều": "#0000FF",
+    "Ca tối": "#4B0082",
+    "Ca full": "#D2691E",
+    Nghỉ: "transparent",
   };
   return colors[name] || "#64748b";
 };
@@ -52,7 +52,7 @@ const getShiftColor = (name: string): string => {
 export default function StaffShiftIndex() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
-  const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs());
+  const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs().locale("vi")); // Dùng locale vi
   const [scheduleData, setScheduleData] = useState<WeeklyScheduleData | null>(
     null
   );
@@ -64,9 +64,7 @@ export default function StaffShiftIndex() {
       const res = await shiftService.getWeeklyAssignments(
         date.format("YYYY-MM-DD")
       );
-      if (res.success) {
-        setScheduleData(res.data);
-      }
+      if (res.success) setScheduleData(res.data);
     } catch (error: unknown) {
       message.error("Không thể tải lịch làm việc");
     } finally {
@@ -78,32 +76,45 @@ export default function StaffShiftIndex() {
     fetchSchedule(currentDate);
   }, [currentDate]);
 
-  const weekDays = useMemo((): Dayjs[] => {
-    const start = currentDate.startOf("week");
-    return Array.from({ length: 7 }).map((_, i) => start.add(i + 1, "day"));
+  // FIX LỖI THỨ 2: Lấy chính xác 7 ngày từ Thứ 2 đến Chủ Nhật
+  const weekDays = useMemo(() => {
+    // startOf("week") với locale "vi" sẽ trả về Thứ 2
+    const start = currentDate.locale("vi").startOf("week");
+    return Array.from({ length: 7 }).map((_, i) => start.add(i, "day"));
   }, [currentDate]);
 
-  const filteredStaff = useMemo((): StaffSchedule[] => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filteredStaff = useMemo((): any[] => {
     if (!scheduleData) return [];
     return scheduleData.staff_schedules.filter((s) =>
       s.name.toLowerCase().includes(searchText.toLowerCase())
     );
   }, [scheduleData, searchText]);
 
-  const handleOpenEditModal = (record: StaffSchedule) => {
-    console.log("Mở modal sửa cho:", record.name);
-    message.info("Chức năng sửa ca đang được tích hợp");
-  };
-
   const handleDeleteStaffAssignments = async (
     staffId: number
   ): Promise<void> => {
     try {
-      message.loading("Đang xử lý...");
-      message.success("Đã xóa lịch làm việc thành công");
-      fetchSchedule(currentDate);
+      if (!scheduleData) return;
+      message.loading({ content: "Đang xử lý...", key: "del_assignment" });
+      const { start, end } = scheduleData.week_range;
+      const startDate = dayjs(start, "DD/MM/YYYY").format("YYYY-MM-DD");
+      const endDate = dayjs(end, "DD/MM/YYYY").format("YYYY-MM-DD");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res: any = await shiftService.removeStaffWeeklyAssignments(
+        staffId,
+        startDate,
+        endDate
+      );
+      if (res.success) {
+        message.success({ content: res.message, key: "del_assignment" });
+        fetchSchedule(currentDate);
+      }
     } catch (error) {
-      message.error("Không thể xóa lịch làm việc");
+      message.error({
+        content: "Không thể xóa lịch làm việc",
+        key: "del_assignment",
+      });
     }
   };
 
@@ -117,7 +128,8 @@ export default function StaffShiftIndex() {
       key: "staff",
       fixed: "left" as const,
       width: 220,
-      render: (record: StaffSchedule) => (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (record: any) => (
         <Space size="middle">
           <Avatar
             size={40}
@@ -140,7 +152,8 @@ export default function StaffShiftIndex() {
       title: (
         <div className="text-center py-1">
           <div className="text-[10px] text-gray-400 font-black uppercase italic">
-            T{day.day() === 0 ? "8" : day.day() + 1}
+            {/* Locale VI: 0 là Thứ 2, 6 là Chủ Nhật */}
+            {day.day() === 0 ? "CN" : `T${day.day() + 1}`}
           </div>
           <div className="text-[12px] font-bold text-blue-900">
             {day.format("DD/MM")}
@@ -149,26 +162,58 @@ export default function StaffShiftIndex() {
       ),
       key: day.format("YYYY-MM-DD"),
       align: "center" as const,
-      render: (record: StaffSchedule) => {
-        const dateStr = day.format("YYYY-MM-DD");
-        const assignment = record.assignments.find(
-          (a) => a.work_date === dateStr
-        );
-
-        if (assignment && assignment.shift) {
-          const bgColor = getShiftColor(assignment.shift.name);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (record: any) => {
+        if (record.status === "inactive")
           return (
             <Tag
-              className="border-none rounded-full px-4 py-1 font-black italic text-[10px] m-0 shadow-md"
-              style={{
-                backgroundColor: bgColor,
-                color: "#fff",
-                minWidth: "80px",
-                textAlign: "center",
-              }}
+              color="default"
+              className="opacity-40 grayscale border-none font-black italic text-[9px]"
             >
-              {assignment.shift.name.toUpperCase()}
+              DỪNG HĐ
             </Tag>
+          );
+        if (record.status === "off")
+          return (
+            <Tag
+              color="orange"
+              className="border-none font-black italic text-[9px]"
+            >
+              TẠM NGHỈ
+            </Tag>
+          );
+
+        const dateStr = day.format("YYYY-MM-DD");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dayAssignments = record.assignments.filter(
+          (a: any) => a.work_date === dateStr
+        );
+
+        if (dayAssignments.length > 0) {
+          return (
+            <Space
+              direction="vertical"
+              size={4}
+              className="w-full items-center"
+            >
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {dayAssignments.map((assignment: any) => (
+                <Tag
+                  key={assignment.id}
+                  className="border-none rounded-full px-4 py-1 font-black italic text-[9px] m-0 shadow-md w-[85px] text-center"
+                  style={{
+                    backgroundColor: getShiftColor(
+                      assignment.shift?.name || ""
+                    ),
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => navigate(`/admin/shifts/edit/${record.id}`)}
+                >
+                  {assignment.shift?.name.toUpperCase()}
+                </Tag>
+              ))}
+            </Space>
           );
         }
         return (
@@ -188,13 +233,14 @@ export default function StaffShiftIndex() {
       align: "right" as const,
       fixed: "right" as const,
       width: 140,
-      render: (record: StaffSchedule) => (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      render: (record: any) => (
         <Space size="small">
           <Tooltip title="Xem chi tiết">
             <Button
               icon={<EyeOutlined />}
               size="small"
-              className="flex items-center justify-center rounded-md border-gray-300 text-blue-500 hover:text-blue-600 hover:border-blue-500 shadow-sm"
+              className="flex items-center justify-center rounded-md border-gray-300 text-blue-500 shadow-sm"
               onClick={() => navigate(`/admin/shifts/${record.id}`)}
             />
           </Tooltip>
@@ -203,13 +249,12 @@ export default function StaffShiftIndex() {
               type="primary"
               icon={<EditOutlined />}
               size="small"
-              className="flex items-center justify-center rounded-md shadow-sm bg-blue-600 border-blue-600 hover:bg-blue-700"
+              className="flex items-center justify-center rounded-md shadow-sm bg-blue-600 border-blue-600"
               onClick={() => navigate(`/admin/shifts/edit/${record.id}`)}
             />
           </Tooltip>
           <Popconfirm
             title="Xóa lịch làm?"
-            description={`Xóa toàn bộ phân ca trong tuần của ${record.name}?`}
             onConfirm={() => handleDeleteStaffAssignments(record.id)}
             okText="Xóa"
             cancelText="Hủy"
@@ -232,7 +277,6 @@ export default function StaffShiftIndex() {
 
   return (
     <div className="p-8 bg-[#064e3b] min-h-screen space-y-8">
-      {/* Legend Card */}
       <Card className="rounded-2xl border-none shadow-xl bg-white/95">
         <Space size="large" wrap>
           <Text className="text-gray-400 font-black italic text-[11px] uppercase tracking-widest">
@@ -258,8 +302,7 @@ export default function StaffShiftIndex() {
           ))}
         </Space>
       </Card>
-
-      {/* Stats Section */}
+      {/* Giữ nguyên phần Stats và Table phía dưới như code gốc của bro */}
       <Row gutter={[20, 20]}>
         <Col xs={24} sm={12} lg={4}>
           <Card className="rounded-[24px] border-none shadow-lg text-center bg-white border-t-4 border-blue-600">
@@ -294,7 +337,6 @@ export default function StaffShiftIndex() {
           </Col>
         ))}
       </Row>
-
       <Card className="rounded-[32px] border-none shadow-2xl overflow-hidden bg-white/95">
         <div className="p-6 flex flex-wrap justify-between items-center gap-4 border-b border-gray-100">
           <Space wrap size="middle">
@@ -319,7 +361,7 @@ export default function StaffShiftIndex() {
             <Input
               placeholder="Tìm kiếm nhân viên..."
               prefix={<SearchOutlined className="text-blue-500" />}
-              className="w-72 rounded-xl h-10 border-gray-100 shadow-inner font-bold"
+              className="w-72 rounded-xl h-10 shadow-inner font-bold"
               onChange={(e) => setSearchText(e.target.value)}
             />
           </Space>
@@ -328,19 +370,18 @@ export default function StaffShiftIndex() {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => navigate("/admin/shifts/add")}
-              className="h-11 px-8 rounded-2xl bg-blue-700 border-none font-black italic uppercase shadow-xl hover:scale-105 transition-all"
+              className="h-11 px-8 rounded-2xl bg-blue-700 font-black italic uppercase shadow-xl hover:scale-105 transition-all"
             >
               THÊM CA LÀM
             </Button>
             <Button
               icon={<ExportOutlined />}
-              className="rounded-2xl h-11 px-6 font-black uppercase italic text-[11px] border-gray-300 shadow-sm"
+              className="rounded-2xl h-11 px-6 font-black uppercase italic text-[11px] border-gray-300"
             >
               XUẤT BÁO CÁO
             </Button>
           </Space>
         </div>
-
         <Table
           columns={columns}
           dataSource={filteredStaff}

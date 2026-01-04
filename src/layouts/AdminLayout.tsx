@@ -126,7 +126,7 @@ export default function AdminLayout() {
         },
 
         {
-          key: "/admin/attendance",
+          key: "/admin/attendances",
           icon: <ClockCircleOutlined />,
           label: "Chấm công",
         },

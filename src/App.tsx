@@ -76,6 +76,13 @@ import ShiftAdd from "./pages/admin/shifts/ShiftAdd";
 import ShiftDetail from "./pages/admin/shifts/ShiftDetail";
 import ShiftEdit from "./pages/admin/shifts/ShiftEdit";
 
+// chấm công cho nhân viên 
+import AdminAttendance from "./pages/admin/attendance/index";
+import AttendanceAdd from "./pages/admin/attendance/AttendanceAdd";
+import AttendanceDetail from "./pages/admin/attendance/AttendanceDetail";
+import AttendanceEdit from "./pages/admin/attendance/AttendanceEdit";
+
+
 
 
 
@@ -84,7 +91,6 @@ import ShiftEdit from "./pages/admin/shifts/ShiftEdit";
 
 // ----------------------Staff pages
 import AdminCustomers from "./pages/admin/customers/index";
-import AdminAttendance from "./pages/admin/attendance/index";
 
 import AdminProfile from "./pages/admin/profile/index";
 import AdminRevenue from "./pages/admin/revenue/index";
@@ -177,13 +183,21 @@ const App = () => (
                 <Route path="/admin/shifts/edit/:id" element={<ShiftEdit />} />
 
 
+                {/* quản lý chấm công */}
+                <Route path="/admin/attendances" element={<AdminAttendance />} />
+                <Route path="/admin/attendances/add" element={<AttendanceAdd />} />
+                <Route path="/admin/attendances/:id" element={<AttendanceDetail />} />
+                <Route path="/admin/attendances/edit/:id" element={<AttendanceEdit />} />
+
+
+                
+
 
 
                 {/* quản lý khách hàng */}
 
                 <Route path="/admin/customers" element={<AdminCustomers />} />
-                <Route path="/admin/attendance" element={<AdminAttendance />} />
-                <Route path="/admin/revenue" element={<AdminRevenue />} />
+x                <Route path="/admin/revenue" element={<AdminRevenue />} />
                 <Route path="/admin/settings" element={<AdminSettings />} />
                 <Route path="/admin/profile" element={<AdminProfile />} />
                 {/* // Nhóm Admin */}
