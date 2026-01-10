@@ -180,33 +180,7 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Demo accounts */}
-          <div className="mt-8 p-5 bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl border border-emerald-200 dark:border-emerald-800">
-            <p className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-              Tài khoản demo:
-            </p>
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <p className="flex justify-between">
-                <span>Admin:</span>{" "}
-                <code className="bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded">
-                  admin@stadium.com / admin123
-                </code>
-              </p>
-              <p className="flex justify-between">
-                <span>Staff:</span>{" "}
-                <code className="bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded">
-                  staff@stadium.com / staff123
-                </code>
-              </p>
-              <p className="flex justify-between">
-                <span>User:</span>{" "}
-                <code className="bg-white/50 dark:bg-black/20 px-2 py-0.5 rounded">
-                  user@stadium.com / user123
-                </code>
-              </p>
-            </div>
-          </div>
+          
         </div>
       </div>
       {" "}

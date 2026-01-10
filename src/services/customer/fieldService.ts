@@ -2,24 +2,19 @@ import api from "../api";
 
 export interface Field {
   id: number;
-  name: string; // 🛑 FIX 1: Dùng type cho outdoor/indoor (dùng string)
-  type: string; // Có thể là 'outdoor' hoặc 'indoor'
-  // 🛑 FIX 2: Dùng price (đã đồng bộ với DB)
-  price: number;
-
-  // 🛑 FIX 3: Dùng size (number)
-  size: number;
-
-  // 🛑 FIX 4: Thêm các cột bị thiếu mà Component đang cố gắng render
-  surface: string; // Tên cột mặt sân
+  name: string;
+  type: string; // 'outdoor' | 'indoor'
+  price: number; // Giá thuê/giờ
+  size: number; // Quy mô: 5, 7, 11
+  surface: string; // Mặt sân: Cỏ nhân tạo, Cỏ tự nhiên...
   rating: number;
+  location: string;
   reviews_count: number;
   available: boolean;
-  is_vip: boolean; // Cột VIP
-
+  is_vip: boolean;
   description?: string;
-  image?: string;
-  features?: string[]; // Đã đổi amenities thành features
+  image: string; // URL ảnh sân
+  features?: string[];
 }
 
 export interface FieldFilters {

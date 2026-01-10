@@ -1,202 +1,341 @@
-import { useState, useEffect, useCallback } from "react";
-import { Input, Select, Row, Col, Empty, message, Spin } from "antd";
-import { SearchOutlined } from "@ant-design/icons";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  Input,
+  Select,
+  Row,
+  Col,
+  Empty,
+  message,
+  Spin,
+  Typography,
+  Space,
+  Button,
+  Card,
+  Pagination,
+} from "antd";
+import {
+  SearchOutlined,
+  FilterOutlined,
+  ThunderboltOutlined,
+  SortAscendingOutlined,
+  FireOutlined,
+} from "@ant-design/icons";
 import FieldCard from "@/components/customer/FieldCard";
-// import { Field } from "@/services/customer/fieldService";
 import customerFieldService, {
   Field,
-} from "../../services/customer/fieldService"; //
-
-// import customerFieldService, { Field } from "../../services/customer/fieldService";
+} from "../../services/customer/fieldService";
 
 const { Option } = Select;
+const { Title, Text, Paragraph } = Typography;
 
 export default function Fields() {
-  // State quản lý dữ liệu và trạng thái
+  // --- STATES ---
   const [fields, setFields] = useState<Field[]>([]);
-  const [loading, setLoading] = useState(false); // State quản lý Filters
+  const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 6; // Yêu cầu hiển thị 6 sân mỗi trang
 
   const [searchText, setSearchText] = useState("");
   const [filterSize, setFilterSize] = useState<string>("all");
   const [filterSurface, setFilterSurface] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("default"); // 1. Logic lọc + sắp xếp dữ liệu đã tải xuống
+  const [sortBy, setSortBy] = useState<string>("default");
 
-  const filteredFields = fields
-    .filter((field) => {
-      const matchSearch =
-        field.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        (field.description || "")
-          .toLowerCase()
-          .includes(searchText.toLowerCase()); // Chuyển filterSize -> number
+  // --- LOGIC LỌC VÀ SẮP XẾP ---
+  const filteredFields = useMemo(() => {
+    return fields
+      .filter((field) => {
+        const matchSearch =
+          field.name.toLowerCase().includes(searchText.toLowerCase()) ||
+          (field.description || "")
+            .toLowerCase()
+            .includes(searchText.toLowerCase());
+        const sizeValue =
+          filterSize !== "all" ? parseInt(filterSize, 10) : null;
+        const matchSize = filterSize === "all" || field.size === sizeValue;
+        const matchSurface =
+          filterSurface === "all" || field.surface === filterSurface;
+        return matchSearch && matchSize && matchSurface;
+      })
+      .sort((a, b) => {
+        if (sortBy === "price-asc") return a.price - b.price;
+        if (sortBy === "price-desc") return b.price - a.price;
+        if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
+        return 0;
+      });
+  }, [fields, searchText, filterSize, filterSurface, sortBy]);
 
-      const sizeValue = filterSize !== "all" ? parseInt(filterSize, 10) : null;
-      // 🛑 FIX: Đảm bảo field.size là number
-      const matchSize = filterSize === "all" || field.size === sizeValue; // Lọc theo mặt sân
+  // --- LOGIC PHÂN TRANG (PAGINATION) ---
+  const currentTableData = useMemo(() => {
+    const firstPageIndex = (currentPage - 1) * pageSize;
+    const lastPageIndex = firstPageIndex + pageSize;
+    return filteredFields.slice(firstPageIndex, lastPageIndex);
+  }, [currentPage, filteredFields]);
 
-      const matchSurface =
-        filterSurface === "all" || field.surface === filterSurface;
+  // Reset về trang 1 khi thay đổi bất kỳ bộ lọc nào
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, filterSize, filterSurface, sortBy]);
 
-      return matchSearch && matchSize && matchSurface;
-    })
-    .sort((a, b) => {
-      // ⬅️ FIX: SỬ DỤNG field.price (ĐÃ SỬA LỖI CÚ PHÁP)
-      if (sortBy === "price-asc") return a.price - b.price;
-      if (sortBy === "price-desc") return b.price - a.price;
-      if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
-      return 0;
-    }); // 2. Hàm gọi API tải dữ liệu
-
+  // --- API HANDLER ---
   const fetchFields = useCallback(async () => {
     try {
       setLoading(true);
       const response = await customerFieldService.getFields();
-
-      // ⬅️ FIX TRIỆT ĐỂ: SỬA LỖI fields.filter is not a function
-      // Trích xuất mảng sân bóng từ key 'data' của Laravel Response
-      const fieldsArray = response.data?.data || response.data; // Dùng .data.data nếu có, ngược lại dùng .data
-
-      // Khởi tạo fields với một mảng (nếu fieldsArray không phải array)
+      const fieldsArray = response.data?.data || response.data;
       if (Array.isArray(fieldsArray)) {
         setFields(fieldsArray);
       } else {
-        // Xử lý trường hợp API trả về object rỗng hoặc cấu trúc sai
         setFields([]);
-        if (response.data && response.data.success === true) {
-          // API thành công nhưng không có mảng data (vd: API trả về {success: true, data: {}})
-          console.warn(
-            "API returned success but data array is missing/not array:",
-            response.data
-          );
-        }
       }
     } catch (error) {
-      console.error("Lỗi tải danh sách sân:", error);
-      message.error("Không thể tải danh sách sân từ máy chủ.");
+      message.error("Lỗi tải danh sách sân rực rỡ.");
     } finally {
       setLoading(false);
     }
   }, []);
-  // 3. Tải dữ liệu khi component mount
+
   useEffect(() => {
     fetchFields();
   }, [fetchFields]);
 
   return (
-    <div style={{ minHeight: "calc(100vh - 200px)" }}>
-      {/* Hero Section */}
+    <div className="min-h-screen bg-[#f1f5f3] pb-24 font-sans animate-in fade-in duration-700">
+      {/* ================= HERO SECTION (STYLE RỰC RỠ) ================= */}
       <div
+        className="relative overflow-hidden"
         style={{
-          background: "linear-gradient(135deg, #62B462 0%, #4A9D4A 100%)",
-          padding: "60px 0",
-          marginBottom: 40,
-          textAlign: "center",
+          background: "#064e3b",
+          padding: "100px 0 160px",
           color: "#fff",
         }}
       >
-        <h1 style={{ fontSize: 42, fontWeight: 700, marginBottom: 16 }}>
-          Danh Sách Sân Bóng
-        </h1>
-        <p style={{ fontSize: 18, opacity: 0.9 }}>
-          Chọn sân phù hợp cho trận đấu của bạn
-        </p>
+        {/* Glow Effects từ ảnh mẫu */}
+        <div
+          className="absolute"
+          style={{
+            top: "10%",
+            right: "5%",
+            width: "400px",
+            height: "400px",
+            background:
+              "radial-gradient(circle, rgba(52, 211, 153, 0.2) 0%, rgba(6, 78, 59, 0) 70%)",
+            borderRadius: "50%",
+          }}
+        />
+        <div
+          className="absolute"
+          style={{
+            bottom: "-10%",
+            left: "10%",
+            width: "300px",
+            height: "300px",
+            background:
+              "radial-gradient(circle, rgba(45, 212, 191, 0.15) 0%, rgba(6, 78, 59, 0) 70%)",
+            borderRadius: "50%",
+          }}
+        />
+        <div
+          className="absolute border-[40px] border-emerald-400/10 rounded-full"
+          style={{
+            top: "20%",
+            right: "15%",
+            width: "180px",
+            height: "180px",
+            filter: "blur(2px)",
+          }}
+        />
+
+        <div className="container mx-auto px-10 relative z-10">
+          <Text className="text-emerald-400 font-black uppercase tracking-[0.3em] mb-4 block text-sm italic">
+            Wesport Field List:
+          </Text>
+          <Title className="!text-white !text-6xl !font-black !italic !uppercase !mb-4 !tracking-tighter">
+            Danh sách sân bóng <br />
+            <span className="text-[#fbbf24] drop-shadow-md">Đỉnh cao</span>
+          </Title>
+          <Paragraph className="text-emerald-50/80 text-lg font-medium max-w-xl mb-10 italic">
+            Tất cả sân đạt tiêu chuẩn FIFA, được quản lý rực rỡ bởi hệ thống
+            chuyên nghiệp.
+          </Paragraph>
+          <div className="w-20 h-2 bg-[#fbbf24] rounded-full shadow-[0_0_15px_rgba(251,191,36,0.5)]"></div>
+        </div>
       </div>
 
-      <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px 60px" }}>
-        {/* Bộ lọc */}
-        <div
+      <div className="container mx-auto px-10" style={{ marginTop: "-80px" }}>
+        {/* ================= BỘ LỌC (GLASSMORPHISM CARD) ================= */}
+        <Card
+          className="shadow-2xl border-none p-6 relative z-20"
           style={{
-            backgroundColor: "#fff",
-            padding: 24,
-            borderRadius: 12,
-            marginBottom: 32,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+            borderRadius: 24,
+            background: "rgba(255, 255, 255, 0.98)",
           }}
         >
-          <Row gutter={[16, 16]}>
-            {/* Search */}
-            <Col xs={24} md={12}>
+          <div className="flex flex-wrap justify-between items-center gap-4 mb-8">
+            <div className="flex items-center gap-3">
+              <div className="bg-emerald-500 p-2 rounded-lg text-white shadow-lg shadow-emerald-200">
+                <ThunderboltOutlined style={{ fontSize: 20 }} />
+              </div>
+              <Title
+                level={3}
+                className="!m-0 !font-black !italic !uppercase !text-slate-800 tracking-tight"
+              >
+                Danh sách sân bóng đỉnh cao
+              </Title>
+            </div>
+
+            <div className="flex items-center gap-3 flex-1 justify-end min-w-[300px]">
               <Input
-                size="large"
-                placeholder="Tìm kiếm sân..."
-                prefix={<SearchOutlined style={{ color: "#8E8E8E" }} />}
+                placeholder="Tìm tên sân hoặc mô tả..."
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                style={{ borderRadius: 8 }}
+                className="max-w-xs rounded-full border-gray-100 bg-gray-50 h-11 font-bold italic"
+                prefix={<SearchOutlined className="text-emerald-500" />}
               />
-            </Col>
-
-            {/* Filter size */}
-            <Col xs={24} sm={8} md={4}>
-              <Select
-                size="large"
-                value={filterSize}
-                onChange={setFilterSize}
-                style={{ width: "100%" }}
+              <Button
+                type="primary"
+                className="h-11 px-8 rounded-full bg-emerald-700 border-none font-black italic shadow-lg uppercase text-xs"
               >
-                <Option value="all">Tất cả loại</Option>
-                <Option value="5">Sân 5 người</Option>
-                <Option value="7">Sân 7 người</Option>
-                <Option value="11">Sân 11 người</Option>
-              </Select>
-            </Col>
-
-            {/* Filter surface */}
-            <Col xs={24} sm={8} md={4}>
-              <Select
-                size="large"
-                value={filterSurface}
-                onChange={setFilterSurface}
-                style={{ width: "100%" }}
-              >
-                <Option value="all">Tất cả mặt sân</Option>
-                <Option value="Cỏ nhân tạo">Cỏ nhân tạo</Option>
-                <Option value="Cỏ tự nhiên">Cỏ tự nhiên</Option>
-                <Option value="Sàn gỗ chuyên dụng">Sàn gỗ chuyên dụng</Option>
-              </Select>
-            </Col>
-
-            {/* Sort */}
-            <Col xs={24} sm={8} md={4}>
-              <Select
-                size="large"
-                value={sortBy}
-                onChange={setSortBy}
-                style={{ width: "100%" }}
-              >
-                <Option value="default">Mặc định</Option>
-                <Option value="price-asc">Giá thấp đến cao</Option>
-                <Option value="price-desc">Giá cao đến thấp</Option>
-                <Option value="rating">Đánh giá cao nhất</Option>
-              </Select>
-            </Col>
-          </Row>
-        </div>
-
-        {/* Số kết quả */}
-        <div style={{ marginBottom: 24, color: "#5F5F5F", fontSize: 16 }}>
-          Tìm thấy <strong>{filteredFields.length}</strong> sân bóng
-        </div>
-
-        {/* Loading */}
-        {loading ? (
-          <div style={{ textAlign: "center", padding: "100px 0" }}>
-            <Spin size="large" tip="Đang tải danh sách sân..." />
+                Lọc ngay
+              </Button>
+            </div>
           </div>
-        ) : filteredFields.length > 0 ? (
-          <Row gutter={[24, 24]}>
-            {filteredFields.map((field) => (
-              <Col xs={24} sm={12} lg={8} key={field.id}>
-                <FieldCard field={field} />
-              </Col>
-            ))}
+
+          <Row gutter={[20, 20]}>
+            <Col xs={24} md={8}>
+              <div className="bg-[#f8faf9] p-4 rounded-2xl border border-emerald-50">
+                <Text className="text-[10px] font-black italic uppercase text-emerald-600/50 block mb-2 tracking-widest">
+                  Quy mô sân
+                </Text>
+                <Select
+                  size="large"
+                  value={filterSize}
+                  onChange={setFilterSize}
+                  className="w-full custom-select-v2"
+                >
+                  <Option value="all">Tất cả quy mô</Option>
+                  <Option value="5">Sân 5 người (GOW)</Option>
+                  <Option value="7">Sân 7 người (PRO)</Option>
+                  <Option value="11">Sân 11 người (STAR)</Option>
+                </Select>
+              </div>
+            </Col>
+            <Col xs={24} md={8}>
+              <div className="bg-[#f8faf9] p-4 rounded-2xl border border-emerald-50">
+                <Text className="text-[10px] font-black italic uppercase text-emerald-600/50 block mb-2 tracking-widest">
+                  Mặt sân
+                </Text>
+                <Select
+                  size="large"
+                  value={filterSurface}
+                  onChange={setFilterSurface}
+                  className="w-full custom-select-v2"
+                >
+                  <Option value="all">Mọi loại cỏ</Option>
+                  <Option value="Cỏ nhân tạo">Cỏ nhân tạo</Option>
+                  <Option value="Cỏ tự nhiên">Cỏ tự nhiên</Option>
+                </Select>
+              </div>
+            </Col>
+            <Col xs={24} md={8}>
+              <div className="bg-[#f8faf9] p-4 rounded-2xl border border-emerald-50">
+                <Text className="text-[10px] font-black italic uppercase text-emerald-600/50 block mb-2 tracking-widest">
+                  Sắp xếp
+                </Text>
+                <Select
+                  size="large"
+                  value={sortBy}
+                  onChange={setSortBy}
+                  className="w-full custom-select-v2"
+                >
+                  <Option value="default">Mặc định</Option>
+                  <Option value="price-asc">Giá tăng dần</Option>
+                  <Option value="price-desc">Giá giảm dần</Option>
+                  <Option value="rating">Đánh giá cao nhất</Option>
+                </Select>
+              </div>
+            </Col>
           </Row>
-        ) : (
-          <Empty
-            description="Không tìm thấy sân phù hợp"
-            style={{ padding: "60px 0" }}
-          />
-        )}
+        </Card>
+
+        {/* ================= GRID KẾT QUẢ ================= */}
+        <div className="mt-12">
+          <div className="flex items-center gap-2 mb-8 ml-2">
+            <FireOutlined className="text-orange-500 text-2xl animate-pulse" />
+            <Text className="text-xl font-black italic uppercase text-slate-700">
+              Kết quả tìm thấy:{" "}
+              <span className="text-emerald-600 text-3xl">
+                {filteredFields.length}
+              </span>{" "}
+              sân bóng
+            </Text>
+          </div>
+
+          {loading ? (
+            <div className="py-40 text-center">
+              <Spin
+                size="large"
+                tip={
+                  <span className="font-bold italic text-emerald-600 block mt-4">
+                    Đang chuẩn bị sân bãi...
+                  </span>
+                }
+              />
+            </div>
+          ) : filteredFields.length > 0 ? (
+            <>
+              <Row gutter={[28, 28]}>
+                {currentTableData.map((field) => (
+                  <Col xs={24} sm={12} lg={8} key={field.id}>
+                    <div className="hover:scale-[1.03] transition-transform duration-500 h-full">
+                      <FieldCard field={field} />
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+
+              {/* PHÂN TRANG RỰC RỠ */}
+              <div className="mt-16 flex justify-center">
+                <div className="bg-white px-6 py-4 rounded-[32px] shadow-2xl border border-emerald-50">
+                  <Pagination
+                    current={currentPage}
+                    total={filteredFields.length}
+                    pageSize={pageSize}
+                    onChange={(page) => {
+                      setCurrentPage(page);
+                      window.scrollTo({ top: 400, behavior: "smooth" });
+                    }}
+                    showSizeChanger={false}
+                    className="custom-pagination"
+                  />
+                </div>
+              </div>
+            </>
+          ) : (
+            <Card className="rounded-[40px] border-none shadow-xl bg-white py-24 text-center">
+              <Empty
+                description={
+                  <Text className="text-2xl font-black italic uppercase text-gray-300">
+                    Không tìm thấy sân nào rực rỡ!
+                  </Text>
+                }
+              />
+            </Card>
+          )}
+        </div>
       </div>
+
+      <style>{`
+        .custom-select-v2 .ant-select-selector {
+          background: transparent !important; border: none !important; box-shadow: none !important;
+          font-weight: 800 !important; font-style: italic !important; text-transform: uppercase !important;
+          padding: 0 !important; color: #064e3b !important;
+        }
+        .ant-select-selection-item { font-size: 15px !important; color: #064e3b !important; }
+        .custom-pagination .ant-pagination-item-active { border-color: #059669 !important; background: #059669 !important; }
+        .custom-pagination .ant-pagination-item-active a { color: #fff !important; }
+        .custom-pagination .ant-pagination-item:hover { border-color: #059669 !important; }
+        .custom-pagination .ant-pagination-item:hover a { color: #059669 !important; }
+      `}</style>
     </div>
   );
 }

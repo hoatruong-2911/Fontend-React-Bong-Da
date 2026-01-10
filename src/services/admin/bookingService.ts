@@ -94,6 +94,18 @@ const adminBookingService = {
   //   const response = await api.get("/bookings", { params });
   //   return response.data;
   // },
+
+  // 7. Xóa đơn đặt sân
+  deleteBooking: async (id: number | string) => {
+    console.log(`[Service] Đang gọi API xóa Booking ID: ${id}`);
+    try {
+      const response = await api.delete(`/bookings/${id}`);
+      return response.data; // Trả về { success: true, message: "..." }
+    } catch (error) {
+      console.error("[Service] Lỗi khi gọi API deleteBooking:", error);
+      throw error;
+    }
+  },
 };
 
 export default adminBookingService;

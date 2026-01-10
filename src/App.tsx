@@ -44,7 +44,7 @@ import UserDetails from "./pages/admin/user/UserDetails";
 import ProductsManagement from "./pages/admin/products/ProductIndex";
 import ProductAdd from "./pages/admin/products/ProductAdd";
 import ProductEdit from "./pages/admin/products/ProductEdit";
-import ProductDetail from "./pages/admin/products/ProductDetail";
+import ADminProductDetail from "./pages/admin/products/ProductDetail";
 
 // brand
 import BrandManagement from "./pages/admin/brands/index";
@@ -70,27 +70,26 @@ import StaffAdd from "./pages/admin/staff-management/StaffAdd";
 import StaffEdit from "./pages/admin/staff-management/StaffEdit";
 import StaffDetail from "./pages/admin/staff-management/StaffDetail";
 
-// ca làm cho nhân viên 
+// ca làm cho nhân viên
 import AdminShifts from "./pages/admin/shifts/index";
 import ShiftAdd from "./pages/admin/shifts/ShiftAdd";
 import ShiftDetail from "./pages/admin/shifts/ShiftDetail";
 import ShiftEdit from "./pages/admin/shifts/ShiftEdit";
 
-// chấm công cho nhân viên 
+// chấm công cho nhân viên
 import AdminAttendance from "./pages/admin/attendance/index";
 import AttendanceAdd from "./pages/admin/attendance/AttendanceAdd";
 import AttendanceDetail from "./pages/admin/attendance/AttendanceDetail";
 import AttendanceEdit from "./pages/admin/attendance/AttendanceEdit";
 
-
-
-
+// quản lý khách hàng
+import AdminCustomers from "./pages/admin/customers/index";
+import CustomerDetail from "./pages/admin/customers/CustomerDetail";
 
 //-------
 //----------------------
 
 // ----------------------Staff pages
-import AdminCustomers from "./pages/admin/customers/index";
 
 import AdminProfile from "./pages/admin/profile/index";
 import AdminRevenue from "./pages/admin/revenue/index";
@@ -104,18 +103,30 @@ import StaffProfile from "./pages/staff/profile/index";
 
 // ----------------------Customer pages
 import Index from "./pages/customer/Index";
+
+// sản phẩm
 import Products from "./pages/customer/Products";
+import ProductDetail from "./pages/customer/ProductDetail";
+
+// sân
 // import ProductDetail from "./pages/customer/ProductDetail";
 import Fields from "./pages/customer/Fields";
 import FieldDetail from "./pages/customer/FieldDetail";
+// đặt sân
 import Booking from "./pages/customer/Booking";
+// giỏ hàng đặt hàng
 import Cart from "./pages/customer/Cart";
-import Checkout from "./pages/customer/Checkout";
-import CustomerProfile from "./pages/customer/profile/index";
 import CustomerOrders from "./pages/customer/orders/index";
+// thanh toán
+import Checkout from "./pages/customer/Checkout";
+
+// giới thiệu
+import AboutUs from "./pages/customer/AboutUs";
+
+// hồ sơ
+import CustomerProfile from "./pages/customer/profile/index";
 
 import NotFound from "./pages/NotFound";
-
 
 const queryClient = new QueryClient();
 
@@ -147,7 +158,6 @@ const App = () => (
                 <Route path="/admin/fields/add" element={<AddField />} />
                 <Route path="/admin/fields/edit/:id" element={<EditField />} />
                 <Route path="/admin/fields/:id" element={<FieldDetails />} />
-
                 <Route path="/admin/bookings" element={<AdminBookings />} />
                 <Route path="/admin/bookings/add" element={<AddBooking />} />
                 <Route
@@ -163,44 +173,60 @@ const App = () => (
                 <Route path="/admin/user/edit/:id" element={<UserEdit />} />
                 <Route path="/admin/user/:id" element={<UserDetails />} />
                 {/* <Route path="/admin/products" element={<AdminProducts />} /> */}
-
                 {/* phòng ban */}
-                <Route path="/admin/Departments"element={<AdminDepartments />}/>
-                <Route path="/admin/Departments/add"element={<AdminDepartmentsAdd />}/>
-                <Route path="/admin/Departments/edit/:id" element={<AdminDepartmentsEdit />} />
-                <Route path="/admin/Departments/:id" element={<AdminDepartmentsDetails />}/>
-
+                <Route
+                  path="/admin/Departments"
+                  element={<AdminDepartments />}
+                />
+                <Route
+                  path="/admin/Departments/add"
+                  element={<AdminDepartmentsAdd />}
+                />
+                <Route
+                  path="/admin/Departments/edit/:id"
+                  element={<AdminDepartmentsEdit />}
+                />
+                <Route
+                  path="/admin/Departments/:id"
+                  element={<AdminDepartmentsDetails />}
+                />
                 {/* quản lý nhân viên */}
                 <Route path="/admin/staff" element={<StaffIndex />} />
                 <Route path="/admin/staff/add" element={<StaffAdd />} />
                 <Route path="/admin/staff/edit/:id" element={<StaffEdit />} />
                 <Route path="/admin/staff/:id" element={<StaffDetail />} />
-
                 {/* quản lý ca làm  */}
                 <Route path="/admin/shifts" element={<AdminShifts />} />
                 <Route path="/admin/shifts/add" element={<ShiftAdd />} />
                 <Route path="/admin/shifts/:id" element={<ShiftDetail />} />
                 <Route path="/admin/shifts/edit/:id" element={<ShiftEdit />} />
-
-
                 {/* quản lý chấm công */}
-                <Route path="/admin/attendances" element={<AdminAttendance />} />
-                <Route path="/admin/attendances/add" element={<AttendanceAdd />} />
-                <Route path="/admin/attendances/:id" element={<AttendanceDetail />} />
-                <Route path="/admin/attendances/edit/:id" element={<AttendanceEdit />} />
-
-
-                
-
-
-
+                <Route
+                  path="/admin/attendances"
+                  element={<AdminAttendance />}
+                />
+                <Route
+                  path="/admin/attendances/add"
+                  element={<AttendanceAdd />}
+                />
+                <Route
+                  path="/admin/attendances/:id"
+                  element={<AttendanceDetail />}
+                />
+                <Route
+                  path="/admin/attendances/edit/:id"
+                  element={<AttendanceEdit />}
+                />
                 {/* quản lý khách hàng */}
-
                 <Route path="/admin/customers" element={<AdminCustomers />} />
-x                <Route path="/admin/revenue" element={<AdminRevenue />} />
+                <Route
+                  path="/admin/customers/:id"
+                  element={<CustomerDetail />}
+                />
+                x <Route path="/admin/revenue" element={<AdminRevenue />} />
                 <Route path="/admin/settings" element={<AdminSettings />} />
                 <Route path="/admin/profile" element={<AdminProfile />} />
-                {/* // Nhóm Admin */}
+                {/* quản lý sản phẩm */}
                 <Route
                   path="/admin/products"
                   element={<ProductsManagement />}
@@ -210,13 +236,14 @@ x                <Route path="/admin/revenue" element={<AdminRevenue />} />
                   path="/admin/products/edit/:id"
                   element={<ProductEdit />}
                 />
-                <Route path="/admin/products/:id" element={<ProductDetail />} />
-
+                <Route
+                  path="/admin/products/:id"
+                  element={<ADminProductDetail />}
+                />
                 <Route path="/admin/brands" element={<BrandManagement />} />
                 <Route path="/admin/brands/add" element={<BrandAdd />} />
                 <Route path="/admin/brands/edit/:id" element={<BrandEdit />} />
                 <Route path="/admin/brands/:id" element={<BrandDetail />} />
-
                 <Route
                   path="/admin/categories"
                   element={<CategoryManagement />}
@@ -248,21 +275,29 @@ x                <Route path="/admin/revenue" element={<AdminRevenue />} />
 
             {/* --- PUBLIC/CUSTOMER ROUTES: Khách hàng vào thoải mái --- */}
             <Route element={<CustomerLayout />}>
+              {/* NHÓM 1: TRANG CÔNG KHAI - TUYỆT ĐỐI KHÔNG CẦN ĐĂNG NHẬP */}
               <Route path="/" element={<Index />} />
               <Route path="/products" element={<Products />} />
               <Route path="/products/:id" element={<ProductDetail />} />
               <Route path="/fields" element={<Fields />} />
               <Route path="/fields/:id" element={<FieldDetail />} />
-              <Route path="/booking" element={<Booking />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/checkout" element={<Checkout />} />
+              <Route path="/aboutus" element={<AboutUs />} />
 
-              {/* Nếu muốn Profile và Orders khách hàng cũng phải đăng nhập mới xem được, 
-                  hãy bao bọc thêm 1 ProtectedRoute allowedRoles={["customer", "staff", "admin"]} ở đây */}
-              <Route path="/profile" element={<CustomerProfile />} />
-              <Route path="/orders" element={<CustomerOrders />} />
+              {/* NHÓM 2: TRANG RIÊNG TƯ - BẮT BUỘC ĐĂNG NHẬP */}
+              <Route
+                element={
+                  <ProtectedRoute
+                    allowedRoles={["customer", "staff", "admin"]}
+                  />
+                }
+              >
+                <Route path="/booking" element={<Booking />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/profile" element={<CustomerProfile />} />
+                <Route path="/orders" element={<CustomerOrders />} />
+              </Route>
             </Route>
-
             {/* CATCH-ALL ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

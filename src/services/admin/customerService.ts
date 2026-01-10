@@ -1,4 +1,4 @@
-import api from '../api';
+import api from "../api";
 
 export interface Customer {
   id: number;
@@ -6,49 +6,76 @@ export interface Customer {
   email: string;
   phone?: string;
   avatar?: string;
-  total_orders: number;
+  total_bookings: number; // Đổi từ orders sang bookings cho khớp DB
   total_spent: number;
-  is_active: boolean;
+  status: "active" | "inactive"; // Dùng status thay vì is_active cho khớp giao diện
+  is_vip: boolean; // Thêm trường VIP
+  last_booking?: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface CustomerFilters {
-  search?: string;
-  is_active?: boolean;
-  page?: number;
-  per_page?: number;
+export interface CustomerStats {
+  totalCustomers: number;
+  activeCustomers: number;
+  vipCustomers: number;
+  totalBookings: number;
 }
 
-// Admin Customer API
+export interface CustomerResponse {
+  success: boolean;
+  data: Customer[];
+  stats: CustomerStats;
+}
+
+export interface CustomerFilters {
+  search?: string;
+  status?: string;
+  page?: number;
+}
+
+// Thêm interface này vào file service hiện tại
+export interface CustomerBooking {
+  id: number;
+  booking_code: string;
+  check_in_date: string;
+  total_price: number;
+  status: "completed" | "pending" | "cancelled";
+}
+
 const adminCustomerService = {
-  // Lấy danh sách khách hàng
-  getCustomers: async (filters?: CustomerFilters) => {
-    const response = await api.get('/admin/customers', { params: filters });
+  getCustomers: async (
+    filters?: CustomerFilters
+  ): Promise<CustomerResponse> => {
+    const response = await api.get<CustomerResponse>("/admin/customers", {
+      params: filters,
+    });
     return response.data;
   },
 
-  // Lấy chi tiết khách hàng
-  getCustomer: async (id: number) => {
+  getCustomer: async (
+    id: number
+  ): Promise<{ success: boolean; data: Customer }> => {
     const response = await api.get(`/admin/customers/${id}`);
     return response.data;
   },
 
-  // Cập nhật khách hàng
-  updateCustomer: async (id: number, data: Partial<Customer>) => {
-    const response = await api.put(`/admin/customers/${id}`, data);
+  // Lấy chi tiết kèm lịch sử đặt sân
+  getCustomerDetail: async (
+    id: number | string
+  ): Promise<{
+    success: boolean;
+    data: Customer;
+    bookings: CustomerBooking[];
+  }> => {
+    const response = await api.get(`/admin/customers/${id}`);
     return response.data;
   },
 
-  // Lấy lịch sử đơn hàng của khách
-  getCustomerOrders: async (id: number) => {
-    const response = await api.get(`/admin/customers/${id}/orders`);
-    return response.data;
-  },
-
-  // Lấy lịch sử booking của khách
-  getCustomerBookings: async (id: number) => {
-    const response = await api.get(`/admin/customers/${id}/bookings`);
+  deleteCustomer: async (
+    id: number
+  ): Promise<{ success: boolean; message: string }> => {
+    const response = await api.delete(`/admin/customers/${id}`);
     return response.data;
   },
 };

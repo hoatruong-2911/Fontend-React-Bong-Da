@@ -1,241 +1,393 @@
-import { useState, useEffect } from 'react';
-import { Input, Select, Row, Col, Badge, Button, message, Spin } from 'antd';
-import { SearchOutlined, ShoppingCartOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
-import { ProductCard } from '@/components/customer/ProductCard';
-import { CategorySidebar } from '@/components/customer/CategorySidebar';
-import { mockProducts } from '@/data/mockProducts';
-import { Product, ProductCategory } from '@/types/product';
-import { customerServices } from '@/services';
+import { useState, useEffect } from "react";
+import {
+  Input,
+  Row,
+  Col,
+  Badge,
+  Button,
+  message,
+  Spin,
+  Typography,
+  Space,
+  Card,
+  Collapse,
+  Select,
+  Empty,
+  Pagination,
+} from "antd";
+import {
+  ShoppingCartOutlined,
+  FilterOutlined,
+  AppstoreOutlined,
+  RightOutlined,
+  SortAscendingOutlined,
+  InboxOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import { ProductCard } from "@/components/customer/ProductCard";
+import customerProductService, {
+  Product,
+  Category,
+  Brand,
+} from "@/services/customer/productService";
 
-const { Search } = Input;
+const { Title, Text } = Typography;
+const { Panel } = Collapse;
 const { Option } = Select;
 
-const Products = () => {
-  const navigate = useNavigate();
-  const [selectedCategory, setSelectedCategory] = useState<ProductCategory | 'all'>('all');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'price-asc' | 'price-desc'>('name');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [cartCount, setCartCount] = useState(0);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [apiError, setApiError] = useState(false);
+interface RawProductResponse {
+  id: number;
+  name: string;
+  price: string | number;
+  category?: { name: string } | string;
+  brand?: { name: string } | string;
+  image?: string;
+  description?: string;
+  stock?: string | number;
+  unit?: string;
+  available?: boolean | number;
+}
 
-  // Fetch products from API
+const Products: React.FC = () => {
+  const navigate = useNavigate();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const [selectedCategory, setSelectedCategory] = useState<string | number>(
+    "all"
+  );
+  const [selectedBrand, setSelectedBrand] = useState<string | number>("all");
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [sortOrder, setSortOrder] = useState<string>("latest");
+  const [cartCount, setCartCount] = useState<number>(0);
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 6;
+
+  const extractData = <T,>(res: unknown): T[] => {
+    const dataObj = res as { data?: T[] | { data: T[] } };
+    if (!dataObj || !dataObj.data) return [];
+    if (Array.isArray(dataObj.data)) return dataObj.data;
+    if (
+      typeof dataObj.data === "object" &&
+      "data" in dataObj.data &&
+      Array.isArray(dataObj.data.data)
+    ) {
+      return dataObj.data.data;
+    }
+    return [];
+  };
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        const [catRes, brandRes] = await Promise.all([
+          customerProductService.getCategories(),
+          customerProductService.getBrands(),
+        ]);
+        setCategories(extractData<Category>(catRes));
+        setBrands(extractData<Brand>(brandRes));
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    fetchMetadata();
+  }, []);
+
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         setLoading(true);
-        const response = await customerServices.productService.getProducts();
-        
-        // Handle different API response structures
-        let productsData: any[] = [];
-        if (Array.isArray(response.data)) {
-          productsData = response.data;
-        } else if (response.data?.data && Array.isArray(response.data.data)) {
-          productsData = response.data.data;
-        } else if (response.data?.products && Array.isArray(response.data.products)) {
-          productsData = response.data.products;
-        } else {
-          console.warn('Unexpected API response structure:', response.data);
-          throw new Error('Invalid API response structure');
-        }
+        const res = await customerProductService.getProducts({
+          category: selectedCategory === "all" ? undefined : selectedCategory,
+          brand: selectedBrand === "all" ? undefined : selectedBrand,
+          search: searchTerm || undefined,
+          sort: sortOrder,
+        });
 
-        // Map API response to match our Product type
-        const mappedProducts: Product[] = productsData.map((p: any) => ({
-          id: String(p.id),
-          name: p.name,
-          category: p.category as ProductCategory,
-          price: Number(p.price),
-          image: p.image || '/placeholder.svg',
-          description: p.description || '',
-          stock: Number(p.stock) || 0,
-          unit: p.unit || 'cái'
-        }));
-        
+        const rawArray = extractData<RawProductResponse>(res);
+        const mappedProducts: Product[] = rawArray.map(
+          (p: RawProductResponse) => ({
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            price: Number(p.price),
+            category:
+              (typeof p.category === "object"
+                ? p.category?.name
+                : p.category) || "Món ăn",
+            brand:
+              (typeof p.brand === "object" ? p.brand?.name : p.brand) || "",
+            image: p.image,
+            stock: Number(p.stock) || 0,
+            unit: p.unit || "món",
+            is_active: Boolean(p.available),
+          })
+        );
+
         setProducts(mappedProducts);
-        setApiError(false);
-        console.log('API Products loaded:', mappedProducts);
+        setCurrentPage(1);
       } catch (error) {
-        console.error('Failed to fetch products from API:', error);
-        setApiError(true);
-        setProducts(mockProducts);
-        message.warning('Không thể kết nối API, đang dùng dữ liệu mẫu');
+        message.error("Lỗi tải sản phẩm");
       } finally {
         setLoading(false);
       }
     };
-
     fetchProducts();
-  }, []);
+  }, [selectedCategory, selectedBrand, searchTerm, sortOrder]);
+
+  const indexOfLastProduct = currentPage * pageSize;
+  const indexOfFirstProduct = indexOfLastProduct - pageSize;
+  const currentProducts = products.slice(
+    indexOfFirstProduct,
+    indexOfLastProduct
+  );
 
   useEffect(() => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    setCartCount(cart.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0));
+    const updateCart = () => {
+      const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+      setCartCount(
+        cart.reduce(
+          (sum: number, item: { quantity: number }) => sum + item.quantity,
+          0
+        )
+      );
+    };
+    updateCart();
+    window.addEventListener("storage", updateCart);
+    return () => window.removeEventListener("storage", updateCart);
   }, []);
 
   const handleAddToCart = (product: Product) => {
-    const cart = JSON.parse(localStorage.getItem('cart') || '[]');
-    const existingItem = cart.find((item: { id: string }) => item.id === product.id);
-    
-    if (existingItem) {
-      existingItem.quantity += 1;
-    } else {
-      cart.push({
-        id: product.id,
-        name: product.name,
-        image: product.image,
-        price: product.price,
-        quantity: 1,
-        category: product.category,
-        unit: product.unit
-      });
-    }
-    
-    localStorage.setItem('cart', JSON.stringify(cart));
-    setCartCount(cart.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0));
-    message.success(`Đã thêm ${product.name} vào giỏ hàng`);
+    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+    const existing = cart.find(
+      (item: { id: number }) => item.id === product.id
+    );
+    if (existing) existing.quantity += 1;
+    else cart.push({ ...product, quantity: 1 });
+    localStorage.setItem("cart", JSON.stringify(cart));
+    window.dispatchEvent(new Event("storage"));
+    message.success(`Đã thêm ${product.name}!`);
   };
 
-  const filteredProducts = products
-    .filter(product => 
-      (selectedCategory === 'all' || product.category === selectedCategory) &&
-      product.name.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name);
-      if (sortBy === 'price-asc') return a.price - b.price;
-      if (sortBy === 'price-desc') return b.price - a.price;
-      return 0;
-    });
+  // LOGIC MỚI: HÀM MUA NGAY
+  const handleBuyNow = (product: Product) => {
+    // Đóng gói sản phẩm đơn lẻ (số lượng mặc định là 1 khi mua từ danh sách)
+    const buyNowItem = {
+      ...product,
+      quantity: 1,
+    };
+
+    // Điều hướng thẳng đến checkout với state chứa món hàng này
+    navigate("/checkout", { state: { buyNowItem } });
+  };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Page Header */}
-      <div className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-4xl font-bold text-foreground mb-2">🛒 Sản Phẩm</h1>
-              <p className="text-muted-foreground text-lg">Quản lý và bán hàng tại quầy</p>
-            </div>
-            <Badge count={cartCount} showZero>
-              <Button
-                type="primary"
-                icon={<ShoppingCartOutlined />}
-                size="large"
-                className="shadow-lg hover:shadow-xl transition-all h-12 px-6"
-                onClick={() => navigate('/cart')}
-              >
-                Giỏ hàng
-              </Button>
-            </Badge>
-          </div>
-        </div>
+    <div className="min-h-screen bg-[#f4f7f6] pb-20">
+      <div className="bg-[#064e3b] py-8 px-10 text-white flex justify-between items-center shadow-lg">
+        <Title
+          level={3}
+          className="text-white! m-0 font-black italic uppercase"
+        >
+          🛒 SPORT STORE
+        </Title>
+        <Badge count={cartCount} showZero>
+          <Button
+            icon={<ShoppingCartOutlined />}
+            size="large"
+            className="rounded-xl font-bold bg-emerald-500 border-none shadow-md h-12 px-8"
+            onClick={() => navigate("/cart")}
+          >
+            GIỎ HÀNG
+          </Button>
+        </Badge>
       </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-4 py-6">
-        <Row gutter={[24, 24]}>
-          {/* Sidebar */}
-          <Col xs={24} md={6}>
-            <CategorySidebar 
-              selectedCategory={selectedCategory}
-              onCategoryChange={setSelectedCategory}
-            />
+      <div className="max-w-[1600px] mx-auto px-6 py-10">
+        <Row gutter={[20, 20]} align="top">
+          <Col xs={24} md={4}>
+            <Collapse
+              ghost
+              expandIconPosition="end"
+              className="bg-white rounded-2xl shadow-sm"
+              expandIcon={({ isActive }) => (
+                <RightOutlined rotate={isActive ? 90 : 0} />
+              )}
+            >
+              <Panel
+                header={
+                  <Space className="font-bold uppercase text-[11px] italic">
+                    <FilterOutlined className="text-blue-500" /> THƯƠNG HIỆU
+                  </Space>
+                }
+                key="1"
+                style={{ border: "none" }}
+              >
+                <div className="flex flex-col gap-1 pb-2">
+                  <div
+                    className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
+                      selectedBrand === "all"
+                        ? "bg-blue-600 text-white"
+                        : "text-gray-400 hover:bg-gray-50"
+                    }`}
+                    onClick={() => setSelectedBrand("all")}
+                  >
+                    Tất cả hiệu
+                  </div>
+                  {brands.map((b) => (
+                    <div
+                      key={b.id}
+                      className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
+                        selectedBrand === b.id
+                          ? "bg-blue-600 text-white"
+                          : "text-gray-400 hover:bg-gray-50"
+                      }`}
+                      onClick={() => setSelectedBrand(b.id)}
+                    >
+                      {b.name}
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </Collapse>
           </Col>
 
-          {/* Products Area */}
-          <Col xs={24} md={18}>
-            {/* Toolbar */}
-            <div className="bg-card border border-border rounded-lg p-4 mb-6 shadow-sm">
-              <Row gutter={[16, 16]} align="middle">
-                <Col xs={24} md={12}>
-                  <Search
-                    placeholder="Tìm kiếm sản phẩm..."
-                    prefix={<SearchOutlined className="text-muted-foreground" />}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    size="large"
-                    className="w-full"
-                  />
-                </Col>
-                <Col xs={12} md={6}>
-                  <Select
-                    value={sortBy}
-                    onChange={setSortBy}
-                    size="large"
-                    className="w-full"
+          <Col xs={24} md={4}>
+            <Collapse
+              ghost
+              expandIconPosition="end"
+              className="bg-white rounded-2xl shadow-sm"
+              expandIcon={({ isActive }) => (
+                <RightOutlined rotate={isActive ? 90 : 0} />
+              )}
+            >
+              <Panel
+                header={
+                  <Space className="font-bold uppercase text-[11px] italic">
+                    <AppstoreOutlined className="text-emerald-500" /> DANH MỤC
+                  </Space>
+                }
+                key="2"
+                style={{ border: "none" }}
+              >
+                <div className="flex flex-col gap-1 pb-2">
+                  <div
+                    className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
+                      selectedCategory === "all"
+                        ? "bg-emerald-600 text-white"
+                        : "text-gray-400 hover:bg-gray-50"
+                    }`}
+                    onClick={() => setSelectedCategory("all")}
                   >
-                    <Option value="name">Tên A-Z</Option>
-                    <Option value="price-asc">Giá thấp đến cao</Option>
-                    <Option value="price-desc">Giá cao đến thấp</Option>
-                  </Select>
-                </Col>
-                <Col xs={12} md={6}>
-                  <div className="flex gap-2">
-                    <Button
-                      icon={<AppstoreOutlined />}
-                      type={viewMode === 'grid' ? 'primary' : 'default'}
-                      onClick={() => setViewMode('grid')}
-                      size="large"
-                      className={viewMode === 'grid' ? 'bg-primary' : ''}
-                    />
-                    <Button
-                      icon={<UnorderedListOutlined />}
-                      type={viewMode === 'list' ? 'primary' : 'default'}
-                      onClick={() => setViewMode('list')}
-                      size="large"
-                      className={viewMode === 'list' ? 'bg-primary' : ''}
-                    />
+                    Tất cả món
                   </div>
-                </Col>
-              </Row>
+                  {categories.map((c) => (
+                    <div
+                      key={c.id}
+                      className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
+                        selectedCategory === c.id
+                          ? "bg-emerald-600 text-white"
+                          : "text-gray-400 hover:bg-gray-50"
+                      }`}
+                      onClick={() => setSelectedCategory(c.id)}
+                    >
+                      {c.name}
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </Collapse>
+          </Col>
+
+          <Col xs={24} md={16}>
+            <div className="bg-white rounded-[24px] p-4 mb-6 shadow-sm flex flex-wrap gap-4 items-center border-none">
+              <Input
+                placeholder="Tìm món bạn cần ngay (ví dụ: 'giày', 'áo')..."
+                size="large"
+                allowClear
+                prefix={<SearchOutlined className="text-gray-300" />}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                style={{ flex: 3, borderRadius: "16px", padding: "0 15px" }}
+              />
+              <Select
+                size="large"
+                defaultValue="latest"
+                onChange={setSortOrder}
+                style={{ flex: 1, minWidth: "150px" }}
+                suffixIcon={<SortAscendingOutlined />}
+                dropdownStyle={{ borderRadius: "12px" }}
+              >
+                <Option value="latest">Mới nhất</Option>
+                <Option value="price-asc">Giá: Thấp → Cao</Option>
+                <Option value="price-desc">Giá: Cao → Thấp</Option>
+                <Option value="name-asc">Tên: A → Z</Option>
+                <Option value="name-desc">Tên: Z → A</Option>
+              </Select>
             </div>
 
-            {/* Products Grid */}
-            <div className="mb-4 flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-foreground">
-                {filteredProducts.length} sản phẩm
-              </h2>
-              {apiError && (
-                <span className="text-sm text-orange-500">(Dữ liệu mẫu - API chưa kết nối)</span>
-              )}
-              {!apiError && !loading && (
-                <span className="text-sm text-green-500">(Dữ liệu từ API)</span>
-              )}
-            </div>
-
-            {loading && (
-              <div className="flex justify-center items-center py-16">
+            {loading ? (
+              <div className="text-center py-40">
                 <Spin size="large" />
-                <span className="ml-3 text-muted-foreground">Đang tải sản phẩm...</span>
               </div>
-            )}
-            
-            {!loading && (
-              <Row gutter={[16, 16]}>
-                {filteredProducts.map(product => (
-                  <Col 
-                    key={product.id}
-                    xs={24} 
-                    sm={viewMode === 'grid' ? 12 : 24} 
-                    lg={viewMode === 'grid' ? 8 : 24}
-                  >
-                    <ProductCard 
-                      product={product} 
-                      onAddToCart={handleAddToCart}
-                    />
-                  </Col>
-                ))}
-              </Row>
-            )}
-
-            {!loading && filteredProducts.length === 0 && (
-              <div className="text-center py-16">
-                <p className="text-muted-foreground text-lg">
-                  Không tìm thấy sản phẩm nào
-                </p>
+            ) : products.length > 0 ? (
+              <>
+                <Row gutter={[16, 16]}>
+                  {currentProducts.map((p) => (
+                    <Col key={p.id} xs={24} sm={12} lg={8}>
+                      {/* CẬP NHẬT: Truyền handleBuyNow xuống ProductCard */}
+                      <ProductCard
+                        product={p}
+                        onAddToCart={handleAddToCart}
+                        onBuyNow={handleBuyNow}
+                      />
+                    </Col>
+                  ))}
+                </Row>
+                <div className="mt-12 flex justify-center bg-white p-4 rounded-2xl shadow-sm">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={products.length}
+                    onChange={(page) => {
+                      setCurrentPage(page);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    showSizeChanger={false}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="bg-white rounded-[24px] py-20 text-center shadow-sm">
+                <Empty
+                  image={
+                    <InboxOutlined style={{ fontSize: 60, color: "#d9d9d9" }} />
+                  }
+                  description={
+                    <Space direction="vertical">
+                      <Text strong className="text-lg text-slate-600">
+                        Không tìm thấy sản phẩm "{searchTerm}"...
+                      </Text>
+                      <Text type="secondary">
+                        Thử từ khóa khác hoặc xóa bộ lọc để xem thêm món mới
+                        nhé!
+                      </Text>
+                      <Button
+                        type="primary"
+                        className="bg-emerald-600 border-none rounded-lg mt-4"
+                        onClick={() => {
+                          setSelectedBrand("all");
+                          setSelectedCategory("all");
+                          setSearchTerm("");
+                        }}
+                      >
+                        Xem tất cả
+                      </Button>
+                    </Space>
+                  }
+                />
               </div>
             )}
           </Col>

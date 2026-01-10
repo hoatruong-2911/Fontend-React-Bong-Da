@@ -1,4 +1,4 @@
-  import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -26,6 +26,7 @@ import {
   CloseCircleOutlined,
   PlayCircleOutlined,
   StopOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import adminBookingService, { Booking } from "@/services/admin/bookingService";
 import { authService } from "@/services";
@@ -123,6 +124,19 @@ export default function BookingsManagement() {
       fetchBookings();
     } catch (error) {
       message.error("Lỗi khi cập nhật trạng thái");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    try {
+      setLoading(true);
+      await adminBookingService.deleteBooking(id);
+      message.success("Đã xóa đơn đặt sân rực rỡ!");
+      fetchBookings(); // Tải lại danh sách
+    } catch (error) {
+      message.error("Lỗi khi xóa đơn đặt sân");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -256,6 +270,25 @@ export default function BookingsManagement() {
               />
             </Popconfirm>
           )}
+          {/* NÚT XÓA - CHỈ ADMIN MỚI THẤY HOẶC ENABLE */}
+          <Popconfirm
+            title="Xóa vĩnh viễn đơn này?"
+            description="Hành động này không thể hoàn tác, bro chắc chứ?"
+            onConfirm={() => handleDelete(record.id)}
+            okText="Xóa luôn"
+            cancelText="Hủy"
+            okButtonProps={{ danger: true }}
+          >
+            <Tooltip title="Xóa đơn hàng">
+              <Button
+                disabled={!isAdmin}
+                icon={<DeleteOutlined />}
+                size="small"
+                danger
+                className="flex items-center justify-center"
+              />
+            </Tooltip>
+          </Popconfirm>
         </Space>
       ),
     },

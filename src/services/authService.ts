@@ -13,6 +13,20 @@ export interface RegisterData {
   phone?: string;
 }
 
+/**
+ * 🛑 CẬP NHẬT: Thêm Interface UserProfile để khớp với cấu trúc DB
+ * Giúp hiển thị ảnh đại diện và thông tin bổ sung rực rỡ.
+ */
+export interface UserProfile {
+  phone?: string;
+  address?: string;
+  avatar?: string; // Tên file ảnh lưu trong Backend
+}
+
+/**
+ * 🛑 CẬP NHẬT: Mở rộng Interface User
+ * Thêm trường 'profile' để tránh lỗi "Property 'profile' does not exist"
+ */
 export interface User {
   id: number;
   name: string;
@@ -21,6 +35,7 @@ export interface User {
   role: "customer" | "staff" | "admin";
   avatar?: string;
   created_at: string;
+  profile?: UserProfile; // ⬅️ Thêm dòng này để dập lỗi đỏ
 }
 
 export interface AuthResponse {
@@ -29,24 +44,20 @@ export interface AuthResponse {
   message: string;
 }
 
-const authService = {
-  // Login
-  // login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
-  //   const response = await api.post('/auth/login', credentials);
-  //   if (response.data.token) {
-  //     localStorage.setItem('auth_token', response.data.token);
-  //     localStorage.setItem('user', JSON.stringify(response.data.user));
-  //   }
-  //   return response.data;
-  // },
+// Interface cho việc thay đổi mật khẩu (Sạch bóng any)
+export interface ChangePasswordData {
+  current_password: string;
+  new_password: string;
+  new_password_confirmation: string;
+}
 
+const authService = {
+  // Login (Giữ nguyên logic bóc tách dữ liệu rực rỡ của bro)
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     const response = await api.post("/auth/login", credentials);
-    // Backend trả về: { success, message, data: { user, token, ... } }
-    const apiData = response.data.data; // Lấy nội dung bên trong key 'data'
+    const apiData = response.data.data;
 
     if (!apiData || !apiData.user || !apiData.token) {
-      // Ném lỗi rõ ràng nếu dữ liệu cần thiết bị thiếu
       throw new Error(
         "Phản hồi đăng nhập không chứa thông tin người dùng hoặc token."
       );
@@ -56,16 +67,13 @@ const authService = {
     const token = apiData.token;
     const message = response.data.message || "Đăng nhập thành công.";
 
-    // 1. Lưu trữ Token và User vào LocalStorage
     localStorage.setItem("auth_token", token);
     localStorage.setItem("user", JSON.stringify(user));
 
-    // 2. Trả về cấu trúc mà Login.tsx mong đợi (user, token, message)
-    // Cấu trúc này khớp với interface AuthResponse
     return { user, token, message };
   },
 
-  // Register
+  // Register (Giữ nguyên logic cũ)
   register: async (data: RegisterData): Promise<AuthResponse> => {
     const response = await api.post("/auth/register", data);
     if (response.data.token) {
@@ -75,58 +83,67 @@ const authService = {
     return response.data;
   },
 
-  // Logout
+  // Logout (Giữ nguyên logic cũ)
   logout: async () => {
     try {
       await api.post("/auth/logout");
     } finally {
-      // QUAN TRỌNG: Phải xóa đúng key 'auth_token' mà bạn đã set khi login
       localStorage.removeItem("auth_token");
       localStorage.removeItem("user");
-      // Sau khi xóa xong, ProtectedRoute ở Bước 1 sẽ tự động đá user về /login
     }
   },
 
   isAuthenticated: (): boolean => {
-    // Nếu không còn auth_token trong máy thì trả về false
     return !!localStorage.getItem("auth_token");
   },
-  // Get current user
+
+  /**
+   * 🛑 CẬP NHẬT: Get current user
+   * Sửa để bóc tách đúng key 'data' tránh lỗi gán sai Type
+   */
   getCurrentUser: async (): Promise<User> => {
     const response = await api.get("/auth/me");
-    return response.data;
+    // Nếu Backend trả về { data: { user } }, bóc tách đúng data
+    return response.data.data || response.data;
   },
 
-  // Update profile
-  // updateProfile: async (data: Partial<User>): Promise<User> => {
-  //   const response = await api.put("/auth/profile", data);
-  //   localStorage.setItem("user", JSON.stringify(response.data));
-  //   return response.data;
-  // },
-  updateProfile: async (data: Partial<User>): Promise<User> => {
-    const response = await api.put("/auth/user", data); // Backend trả về: { success, message, data: UpdatedUserObject }
+  /**
+   * 🛑 CẬP NHẬT: Update profile
+   * Chấp nhận Partial<User> hoặc FormData để upload ảnh mà không dùng any
+   */
+  updateProfile: async (data: Partial<User> | FormData): Promise<User> => {
+    // 🛑 Xóa sạch "?_method=PUT" để khớp với Route::post trong api.php
+    const response = await api.post("/auth/user", data, {
+      headers:
+        data instanceof FormData
+          ? { "Content-Type": "multipart/form-data" }
+          : {},
+    });
+
     const updatedUser = response.data.data;
-
     localStorage.setItem("user", JSON.stringify(updatedUser));
-    return updatedUser; // ⬅️ Sửa để trả về User Object
+
+    // 🛑 Bắn sự kiện để Avatar trên Header sáng đèn ngay lập tức
+    window.dispatchEvent(new Event("userUpdate"));
+
+    return updatedUser;
   },
 
-  // Change password
-  changePassword: async (data: {
-    current_password: string;
-    new_password: string;
-    new_password_confirmation: string;
-  }): Promise<void> => {
-    await api.put("/auth/change-password", data);
+  // Change password (Sạch bóng any)
+  changePassword: async (data: ChangePasswordData): Promise<void> => {
+    await api.post("/auth/change-password", data);
   },
+
+  changeMyPassword: async (data: Record<string, string>) => {
+      const response = await api.post("/auth/change-password", data);
+      return response.data;
+    },
 
   // Get stored user from localStorage
   getStoredUser: (): User | null => {
     const user = localStorage.getItem("user");
     return user ? JSON.parse(user) : null;
   },
-
-  
 };
 
 export default authService;

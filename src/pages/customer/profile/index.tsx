@@ -1,186 +1,48 @@
-import { useState, useEffect } from "react";
-import {
-  Card,
-  Form,
-  Input,
-  Button,
-  Avatar,
-  Typography,
-  Row,
-  Col,
-  Tabs,
-  Table,
-  Tag,
-  message,
-  Spin,
-} from "antd";
+import React, { useState, useEffect } from "react";
+import { Card, Avatar, Typography, Tabs, Spin, message, Tag } from "antd";
 import {
   UserOutlined,
-  MailOutlined,
-  PhoneOutlined,
-  HomeOutlined,
-  EditOutlined,
-  SaveOutlined,
+  HistoryOutlined,
+  SafetyOutlined,
+  BellOutlined,
 } from "@ant-design/icons";
+import authService, { User } from "@/services/authService";
 
-import authService, {
-  User,
-  UpdateUserData,
-} from "../../../services/authService";
+// Import các sub-components
+import PersonalInfo from "./PersonalInfo";
+import OrderHistory from "./OrderHistory";
+import Security from "./Security";
+import Notifications from "./Notifications";
 
 const { Title, Text } = Typography;
 
-// Form type
-interface ProfileFormData {
-  name: string;
-  email: string;
-  phone: string;
-  address?: string;
-}
-
-// Extended user
-interface ExtendedUser extends User {
-  totalOrders?: number;
-  totalSpent?: number;
-}
-
-// Initial user
-const initialUser: ExtendedUser = {
-  id: 0,
-  name: "",
-  email: "",
-  phone: "",
-  role: "customer",
-  created_at: "",
-  totalOrders: 0,
-  totalSpent: 0,
-};
-
-// Mock data order history
-const mockOrders = [
-  {
-    id: "ORD001",
-    date: "28/05/2025",
-    total: 350000,
-    status: "completed",
-    items: 3,
-  },
-  {
-    id: "ORD002",
-    date: "25/05/2025",
-    total: 520000,
-    status: "completed",
-    items: 5,
-  },
-  {
-    id: "ORD003",
-    date: "20/05/2025",
-    total: 180000,
-    status: "completed",
-    items: 2,
-  },
-  {
-    id: "ORD004",
-    date: "15/05/2025",
-    total: 750000,
-    status: "cancelled",
-    items: 4,
-  },
-];
-
 export default function CustomerProfile() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<ExtendedUser>(initialUser);
+  const [user, setUser] = useState<User | null>(null);
+  const [fetching, setFetching] = useState<boolean>(true);
 
-  const [form] = Form.useForm<ProfileFormData>();
-
-  // Load profile when mount
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-
-        const userResponse: ExtendedUser = await authService.getCurrentUser();
-
-        // Fix phone trả từ profile
-        const phone = userResponse.phone || userResponse.profile?.phone || "";
-
-        setCurrentUser({ ...userResponse, phone });
-
-        form.setFieldsValue({
-          name: userResponse.name,
-          email: userResponse.email,
-          phone,
-        });
-      } catch (error) {
-        console.error("Failed to fetch user profile:", error);
-        message.error("Không thể tải thông tin hồ sơ.");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchProfile();
-  }, [form]);
-
-  // Save profile (PUT)
-  const handleSave = async (values: ProfileFormData) => {
+  const fetchProfile = async () => {
     try {
-      setLoading(true);
-
-      const nameParts = values.name.trim().split(/\s+/);
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
-
-      const apiData: UpdateUserData = {
-        first_name: firstName,
-        last_name: lastName,
-        phone: values.phone,
-      };
-
-      const updatedUser: ExtendedUser = await authService.updateProfile(
-        apiData
-      );
-
-      setCurrentUser(updatedUser);
-      message.success("Cập nhật thông tin thành công!");
-      setIsEditing(false);
-    } catch (error: any) {
-      console.error("Failed to update profile:", error);
-
-      const errorMessage =
-        error.response?.data?.errors?.phone?.[0] ||
-        error.response?.data?.message ||
-        "Cập nhật thất bại.";
-
-      message.error(errorMessage);
+      setFetching(true);
+      // getCurrentUser trả về Promise<User> nên không cần ép kiểu data
+      const res = await authService.getCurrentUser();
+      setUser(res);
+    } catch (error) {
+      message.error("Không thể tải thông tin hồ sơ rực rỡ");
     } finally {
-      setLoading(false);
+      setFetching(false);
     }
   };
 
-  const orderColumns = [
-    { title: "Mã đơn", dataIndex: "id", key: "id" },
-    { title: "Ngày đặt", dataIndex: "date", key: "date" },
-    { title: "Số SP", dataIndex: "items", key: "items" },
-    {
-      title: "Tổng tiền",
-      dataIndex: "total",
-      key: "total",
-      render: (total: number) => `${total.toLocaleString("vi-VN")}đ`,
-    },
-    {
-      title: "Trạng thái",
-      dataIndex: "status",
-      key: "status",
-      render: (status: string) => (
-        <Tag color={status === "completed" ? "green" : "red"}>
-          {status === "completed" ? "Hoàn thành" : "Đã hủy"}
-        </Tag>
-      ),
-    },
-  ];
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  if (fetching)
+    return (
+      <div className="p-20 text-center">
+        <Spin size="large" tip="Đang tải cực phẩm..." />
+      </div>
+    );
 
   const tabItems = [
     {
@@ -190,152 +52,89 @@ export default function CustomerProfile() {
           <UserOutlined /> Thông tin cá nhân
         </span>
       ),
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSave}
-            disabled={!isEditing}
-          >
-            <Row gutter={24}>
-              <Col xs={24} md={12}>
-                <Form.Item
-                  label="Họ và tên"
-                  name="name"
-                  rules={[{ required: true, message: "Vui lòng nhập tên!" }]}
-                >
-                  <Input prefix={<UserOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24} md={12}>
-                <Form.Item label="Email" name="email">
-                  <Input prefix={<MailOutlined />} size="large" disabled />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24} md={12}>
-                <Form.Item label="Số điện thoại" name="phone">
-                  <Input prefix={<PhoneOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-
-              <Col xs={24} md={12}>
-                <Form.Item label="Địa chỉ" name="address">
-                  <Input prefix={<HomeOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-            </Row>
-
-            <div className="flex justify-end gap-3 mt-4">
-              {isEditing ? (
-                <>
-                  <Button onClick={() => setIsEditing(false)}>Hủy</Button>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<SaveOutlined />}
-                    loading={loading}
-                  >
-                    Lưu thay đổi
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  type="primary"
-                  icon={<EditOutlined />}
-                  onClick={() => setIsEditing(true)}
-                >
-                  Chỉnh sửa
-                </Button>
-              )}
-            </div>
-          </Form>
-        </Card>
-      ),
+      children: <PersonalInfo user={user} onRefresh={fetchProfile} />,
     },
-
     {
       key: "orders",
-      label: <span>🧾 Lịch sử đơn hàng</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Table
-            columns={orderColumns}
-            dataSource={mockOrders}
-            rowKey="id"
-            pagination={{ pageSize: 5 }}
-          />
-        </Card>
+      label: (
+        <span>
+          <HistoryOutlined /> Lịch sử đơn hàng
+        </span>
       ),
+      children: <OrderHistory />,
+    },
+    {
+      key: "security",
+      label: (
+        <span>
+          <SafetyOutlined /> Bảo mật
+        </span>
+      ),
+      children: <Security />,
+    },
+    {
+      key: "notifications",
+      label: (
+        <span>
+          <BellOutlined /> Thông báo
+        </span>
+      ),
+      children: <Notifications />,
     },
   ];
 
   return (
-    <div className="min-h-screen bg-muted/30 py-8">
-      <div className="container mx-auto px-4 max-w-5xl">
-        {/* Header */}
-        <Card className="mb-6 border-0 shadow-md">
-          {loading ? (
-            <div className="text-center py-8">
-              <Spin tip="Đang tải hồ sơ..." />
-            </div>
-          ) : (
-            <div className="flex flex-col md:flex-row items-center gap-6">
-              <Avatar
-                src={currentUser.avatar}
-                size={120}
-                icon={<UserOutlined />}
-              />
-
-              <div className="text-center md:text-left flex-1">
-                <Title level={2} className="!mb-1">
-                  {currentUser.name}
-                </Title>
-
-                <Text className="text-muted-foreground">
-                  {currentUser.email}
-                </Text>
-
-                <div className="flex flex-wrap justify-center md:justify-start gap-6 mt-4">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {currentUser.totalOrders || 0}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Đơn hàng
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {(currentUser.totalSpent || 0).toLocaleString("vi-VN")}đ
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Tổng chi tiêu
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-primary">
-                      {currentUser.created_at
-                        ? new Date(currentUser.created_at).toLocaleDateString(
-                            "vi-VN"
-                          )
-                        : "-"}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      Thành viên từ
-                    </div>
-                  </div>
+    <div className="min-h-screen bg-[#f0f4f3] py-10">
+      <div className="container mx-auto px-4 max-w-5xl space-y-6">
+        {/* Header Profile - Hiển thị ảnh rực rỡ */}
+        <Card className="border-0 shadow-lg" style={{ borderRadius: 24 }}>
+          <div className="flex flex-col md:flex-row items-center gap-6 p-2">
+            <Avatar
+              size={120}
+              className="shadow-md border-4 border-emerald-100"
+              src={
+                user?.profile?.avatar
+                  ? `http://127.0.0.1:8000/${user.profile.avatar}`
+                  : null
+              }
+              icon={<UserOutlined />}
+            />
+            <div className="text-center md:text-left flex-1">
+              <Title
+                level={2}
+                className="!mb-1 !font-black !italic !uppercase tracking-tighter"
+              >
+                {user?.name}
+              </Title>
+              <Tag color="emerald" className="font-bold uppercase italic">
+                KHÁCH HÀNG VIP
+              </Tag>
+              <div className="flex flex-wrap justify-center md:justify-start gap-6 mt-4 text-sm text-slate-500">
+                <div>
+                  Email:{" "}
+                  <Text strong className="text-emerald-600">
+                    {user?.email}
+                  </Text>
+                </div>
+                <div>
+                  Gia nhập:{" "}
+                  <Text strong>
+                    {user?.created_at
+                      ? new Date(user.created_at).toLocaleDateString("vi-VN")
+                      : "N/A"}
+                  </Text>
                 </div>
               </div>
             </div>
-          )}
+          </div>
         </Card>
 
-        {!loading && <Tabs items={tabItems} size="large" />}
+        <Tabs
+          items={tabItems}
+          size="large"
+          type="card"
+          className="bg-white p-6 rounded-[24px] shadow-md custom-profile-tabs"
+        />
       </div>
     </div>
   );
