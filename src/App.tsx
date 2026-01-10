@@ -116,7 +116,10 @@ import FieldDetail from "./pages/customer/FieldDetail";
 import Booking from "./pages/customer/Booking";
 // giỏ hàng đặt hàng
 import Cart from "./pages/customer/Cart";
+
+// lịch sử 
 import CustomerOrders from "./pages/customer/orders/index";
+import OrdersDetail from "./pages/customer/orders/OrderDetail";
 // thanh toán
 import Checkout from "./pages/customer/Checkout";
 
@@ -283,6 +286,7 @@ const App = () => (
               <Route path="/fields/:id" element={<FieldDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/aboutus" element={<AboutUs />} />
+              
 
               {/* NHÓM 2: TRANG RIÊNG TƯ - BẮT BUỘC ĐĂNG NHẬP */}
               <Route
@@ -296,6 +300,9 @@ const App = () => (
                 <Route path="/checkout" element={<Checkout />} />
                 <Route path="/profile" element={<CustomerProfile />} />
                 <Route path="/orders" element={<CustomerOrders />} />
+                <Route path="/orders/:orderCode" element={<OrdersDetail />} />
+
+
               </Route>
             </Route>
             {/* CATCH-ALL ROUTE */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Card,
   Row,
@@ -13,6 +13,8 @@ import {
   Space,
   message,
   Result,
+  Image as AntdImage,
+  Tag,
 } from "antd";
 import {
   ShoppingCartOutlined,
@@ -20,60 +22,49 @@ import {
   CreditCardOutlined,
   CheckCircleOutlined,
   QrcodeOutlined,
-  BankOutlined,
   WalletOutlined,
   ArrowLeftOutlined,
-  ThunderboltOutlined,
+  CopyOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
+import checkoutService, {
+  StoreOrderData,
+  CartItem,
+} from "@/services/customer/checkoutService";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 const { TextArea } = Input;
-
-interface CartItem {
-  id: string;
-  name: string;
-  image: string;
-  price: number;
-  quantity: number;
-  size?: string;
-  unit?: string;
-}
 
 interface OrderInfo {
   customerName: string;
   phone: string;
-  email: string;
-  notes: string;
+  email?: string;
+  notes?: string;
 }
 
-const mockQRData = {
-  bankName: "Vietcombank",
-  accountNumber: "1034993840",
-  accountName: "TRUONG THANH HOA",
-  bankCode: "VCB",
+const BANK_CONFIG = {
+  BANK_ID: "vietcombank",
+  ACCOUNT_NO: "1034993840",
+  ACCOUNT_NAME: "TRUONG THANH HOA",
+  TEMPLATE: "compact",
 };
 
 const Checkout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<string>("qr");
-  const [orderInfo, setOrderInfo] = useState<OrderInfo>({
-    customerName: "",
-    phone: "",
-    email: "",
-    notes: "",
-  });
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [orderComplete, setOrderComplete] = useState(false);
-  const [orderId, setOrderId] = useState<string>("");
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<OrderInfo>();
 
+  const [currentStep, setCurrentStep] = useState<number>(0);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<"qr" | "cash">("qr");
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [orderId, setOrderId] = useState<string>("");
+  const [orderInfoState, setOrderInfoState] = useState<OrderInfo | null>(null);
+
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const STORAGE_URL = "http://127.0.0.1:8000/storage/";
 
-  // FIX LỖI: ĐỊNH NGHĨA BIẾN STEPS TẠI ĐÂY
   const steps = [
     { title: "Thông tin", icon: <UserOutlined /> },
     { title: "Thanh toán", icon: <CreditCardOutlined /> },
@@ -81,74 +72,158 @@ const Checkout: React.FC = () => {
   ];
 
   useEffect(() => {
-    if (location.state && location.state.buyNowItem) {
-      setCartItems([location.state.buyNowItem]);
+    if (!orderId) {
+      const newId = `ORD${Math.floor(100000 + Math.random() * 900000)}`;
+      setOrderId(newId);
+    }
+
+    const state = location.state as { buyNowItem?: CartItem } | null;
+    if (state?.buyNowItem) {
+      setCartItems([state.buyNowItem]);
     } else {
       const savedCart = localStorage.getItem("cart");
       if (savedCart) {
-        setCartItems(JSON.parse(savedCart));
+        setCartItems(JSON.parse(savedCart) as CartItem[]);
       }
     }
-  }, [location.state]);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [location.state, orderId]);
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
-  const discount = 0;
-  const serviceFee = subtotal * 0.02;
-  const total = subtotal - discount + serviceFee;
+  const total = subtotal + subtotal * 0.02;
 
-  const generateOrderId = () => {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `ORD-${timestamp}-${random}`;
-  };
+  // 🛑 HÀM LƯU ĐƠN CHÍNH THỨC VÀO DB (CHỈ GỌI KHI ĐÃ CÓ TIỀN)
+  const saveOrderToDatabase = async (
+    info: OrderInfo,
+    method: "qr" | "cash"
+  ) => {
+    try {
+      const orderData: StoreOrderData = {
+        order_code: orderId,
+        customer_name: info.customerName,
+        phone: info.phone,
+        email: info.email,
+        notes: info.notes,
+        payment_method: method,
+        total_amount: total,
+        items: cartItems.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+          unit: item.unit,
+        })),
+      };
 
-  const generateQRContent = () => {
-    return `${mockQRData.bankCode}|${mockQRData.accountNumber}|${
-      mockQRData.accountName
-    }|${total}|${orderId || "ORDER"}`;
-  };
+      await checkoutService.storeOrder(orderData);
 
-  const handleInfoSubmit = (values: OrderInfo) => {
-    setOrderInfo(values);
-    setCurrentStep(1);
-  };
-
-  const handlePaymentSubmit = () => {
-    setIsProcessing(true);
-    const newOrderId = generateOrderId();
-    setOrderId(newOrderId);
-
-    setTimeout(() => {
-      setIsProcessing(false);
-      setCurrentStep(2);
-      setOrderComplete(true);
-      if (!location.state || !location.state.buyNowItem) {
+      // Xóa giỏ hàng
+      const state = location.state as { buyNowItem?: CartItem } | null;
+      if (!state?.buyNowItem) {
         localStorage.removeItem("cart");
         window.dispatchEvent(new Event("storage"));
       }
-      message.success("Đặt hàng thành công rực rỡ!");
-    }, 2000);
+
+      setCurrentStep(2); // Sang trang Hoàn tất
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } } };
+      message.error(
+        "Lưu đơn lỗi: " + (err.response?.data?.message || "Thử lại sau!")
+      );
+    }
   };
 
+  // 🛑 LOGIC POLLING: HỎI BACKEND XEM CÓ TIỀN CHƯA
+  // 🛑 LOGIC POLLING: HỎI BACKEND XEM CÓ TIỀN CHƯA QUA SERVICE
+  useEffect(() => {
+    // Chỉ chạy Polling khi đang ở bước Thanh toán, chọn QR và đã có thông tin khách hàng
+    if (currentStep === 1 && paymentMethod === "qr" && orderInfoState) {
+      pollingRef.current = setInterval(async () => {
+        try {
+          // Sử dụng service thay vì gọi axios trực tiếp
+          // Truyền thêm tổng tiền để Backend check chính xác số dư
+          const response = await checkoutService.checkPaymentStatus(
+            orderId,
+            total
+          );
+
+          // Kiểm tra dữ liệu trả về từ service
+          if (response.data && response.data.status === "paid") {
+            // 1. Dừng việc hỏi thăm Backend ngay lập tức
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null; // Gán null để chắc chắn không chạy lại
+            }
+
+            // 2. Gọi hàm lưu đơn hàng chính thức vào Database
+            await saveOrderToDatabase(orderInfoState, "qr");
+
+            message.success(
+              "Hệ thống đã nhận được tiền, đang khởi tạo cực phẩm!"
+            );
+          }
+        } catch (error: unknown) {
+          // Log lỗi nhẹ nhàng để không làm phiền trải nghiệm người dùng
+          console.warn("Đang đợi tiền về túi rực rỡ... ⚽");
+        }
+      }, 3000); // 3 giây hỏi 1 lần là con số rực rỡ nhất
+    }
+
+    // Cleanup function: Dọn dẹp bộ nhớ khi component bị hủy hoặc chuyển step
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [currentStep, paymentMethod, orderId, orderInfoState, total]);
+
+  const handleInfoSubmit = (values: OrderInfo) => {
+    setOrderInfoState(values);
+    setCurrentStep(1); // Sang bước QR ngay, chưa lưu DB
+    message.success("Mời bro quét mã thanh toán!");
+  };
+
+  const handleManualConfirmCash = async () => {
+    if (!orderInfoState) return;
+    setIsProcessing(true);
+    await saveOrderToDatabase(orderInfoState, "cash"); // Tiền mặt thì lưu luôn
+    setIsProcessing(false);
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    message.success("Đã sao chép nội dung!");
+  };
+
+  const qrImageUrl = `https://img.vietqr.io/image/${BANK_CONFIG.BANK_ID}-${
+    BANK_CONFIG.ACCOUNT_NO
+  }-${
+    BANK_CONFIG.TEMPLATE
+  }.png?amount=${total}&addInfo=${orderId}%20THANH%20TOAN&accountName=${encodeURIComponent(
+    BANK_CONFIG.ACCOUNT_NAME
+  )}`;
+
+  // --- PHẦN RENDER TÓM TẮT ĐƠN HÀNG ---
   const renderOrderSummary = () => (
-    <Card className="sticky top-4 shadow-xl border-none rounded-[32px] overflow-hidden bg-white">
+    <Card className="sticky top-4 shadow-xl border-none rounded-[32px] overflow-hidden bg-white p-6">
       <Title
         level={4}
-        className="!font-black !italic !uppercase !text-slate-800 flex items-center gap-2 mb-6"
+        className="!font-black !italic !uppercase mb-6 flex items-center gap-2"
       >
-        <ShoppingCartOutlined className="text-emerald-500" /> Đơn hàng (
-        {cartItems.length})
+        <ShoppingCartOutlined className="text-emerald-500" /> Đơn hàng của bro
       </Title>
-
       <div className="max-h-80 overflow-y-auto mb-6 pr-2">
         {cartItems.map((item) => {
           const fullImageUrl = item.image?.startsWith("http")
             ? item.image
             : `${STORAGE_URL}${item.image?.replace(/^\//, "")}`;
-
           return (
             <div
               key={item.id}
@@ -159,364 +234,318 @@ const Checkout: React.FC = () => {
                   <img
                     src={fullImageUrl}
                     alt={item.name}
-                    className="w-14 h-14 object-cover rounded-2xl shadow-sm border border-gray-100 group-hover:scale-105 transition-transform"
+                    className="w-14 h-14 object-cover rounded-2xl border border-gray-100"
                   />
-                  <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                  <span className="absolute -top-2 -right-2 bg-emerald-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-white">
                     x{item.quantity}
                   </span>
                 </div>
                 <div>
-                  <Text className="block text-sm font-black uppercase italic text-slate-700 truncate w-32">
+                  <Text
+                    strong
+                    className="block text-sm uppercase italic truncate w-32"
+                  >
                     {item.name}
                   </Text>
-                  <Text className="text-[10px] font-bold text-gray-400 uppercase italic tracking-tighter">
-                    Giá: {item.price.toLocaleString("vi-VN")}đ
+                  <Text className="text-[10px] text-gray-400 uppercase italic">
+                    {item.price.toLocaleString()}đ
                   </Text>
                 </div>
               </div>
               <Text className="font-black italic text-emerald-600">
-                {(item.price * item.quantity).toLocaleString("vi-VN")}đ
+                {(item.price * item.quantity).toLocaleString()}đ
               </Text>
             </div>
           );
         })}
       </div>
-
-      <div className="space-y-3 bg-gray-50 p-6 rounded-[24px] border border-gray-100 shadow-inner">
-        <div className="flex justify-between">
-          <Text className="text-gray-400 font-bold uppercase italic text-[10px]">
-            Tạm tính:
-          </Text>
-          <Text className="font-bold">{subtotal.toLocaleString("vi-VN")}đ</Text>
+      <div className="bg-gray-50 p-6 rounded-[24px] space-y-3 shadow-inner">
+        <div className="flex justify-between text-xs font-bold text-gray-400 uppercase">
+          <span>Tạm tính:</span>
+          <span>{subtotal.toLocaleString()}đ</span>
         </div>
-        <div className="flex justify-between">
-          <Text className="text-gray-400 font-bold uppercase italic text-[10px]">
-            Dịch vụ (2%):
-          </Text>
-          <Text className="font-bold">
-            {serviceFee.toLocaleString("vi-VN")}đ
-          </Text>
-        </div>
-        <Divider className="my-2 border-gray-200" />
+        <Divider className="my-2" />
         <div className="flex justify-between items-center">
-          <Text className="font-black italic uppercase text-emerald-800">
+          <Text className="font-black uppercase italic text-emerald-800">
             Tổng cộng:
           </Text>
-          <Text className="text-2xl font-black italic text-emerald-600">
-            {total.toLocaleString("vi-VN")}đ
+          <Text className="text-3xl font-black italic text-emerald-600">
+            {total.toLocaleString()}đ
           </Text>
         </div>
       </div>
     </Card>
   );
 
-  const renderInfoStep = () => (
-    <Card className="shadow-2xl border-none rounded-[32px] p-4">
-      <Title
-        level={4}
-        className="!font-black !italic !uppercase !text-slate-800 mb-8"
-      >
-        <UserOutlined className="text-blue-500 mr-2" /> Thông tin nhận hàng
-      </Title>
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleInfoSubmit}
-        initialValues={orderInfo}
-      >
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
-              name="customerName"
-              label={
-                <span className="font-black uppercase italic text-[10px] text-gray-400">
-                  Họ và tên
-                </span>
-              }
-              rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}
-            >
-              <Input
-                placeholder="Ví dụ: Anh Ba Khía"
-                className="rounded-xl h-12 font-bold"
-              />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="phone"
-              label={
-                <span className="font-black uppercase italic text-[10px] text-gray-400">
-                  Số điện thoại
-                </span>
-              }
-              rules={[{ required: true, message: "Nhập SĐT" }]}
-            >
-              <Input
-                placeholder="09xxxxxxx"
-                className="rounded-xl h-12 font-bold"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Form.Item
-          name="email"
-          label={
-            <span className="font-black uppercase italic text-[10px] text-gray-400">
-              Email (Không bắt buộc)
-            </span>
-          }
-        >
-          <Input
-            placeholder="email@stadium.com"
-            className="rounded-xl h-12 font-bold"
-          />
-        </Form.Item>
-        <Form.Item
-          name="notes"
-          label={
-            <span className="font-black uppercase italic text-[10px] text-gray-400">
-              Ghi chú đơn hàng
-            </span>
-          }
-        >
-          <TextArea
-            rows={3}
-            placeholder="Ví dụ: Giao hàng tại quầy số 5..."
-            className="rounded-xl font-bold"
-          />
-        </Form.Item>
-        <Form.Item className="mb-0">
-          <Button
-            type="primary"
-            htmlType="submit"
-            size="large"
-            block
-            className="h-16 rounded-[24px] bg-gradient-to-r from-emerald-500 to-teal-600 border-none font-black italic uppercase shadow-xl text-lg hover:scale-[1.02] transition-transform"
-          >
-            Tiếp tục thanh toán
-          </Button>
-        </Form.Item>
-      </Form>
-    </Card>
-  );
-
-  const renderPaymentStep = () => (
-    <div className="space-y-6">
-      <Card className="shadow-2xl border-none rounded-[32px] p-4">
-        <Title
-          level={4}
-          className="!font-black !italic !uppercase !text-slate-800 mb-8"
-        >
-          <CreditCardOutlined className="text-blue-500 mr-2" /> Phương thức
-          thanh toán
-        </Title>
-        <Radio.Group
-          value={paymentMethod}
-          onChange={(e) => setPaymentMethod(e.target.value)}
-          className="w-full"
-        >
-          <Space direction="vertical" className="w-full" size="middle">
-            <Radio
-              value="qr"
-              className={`w-full p-6 border-2 rounded-[24px] transition-all ${
-                paymentMethod === "qr"
-                  ? "border-emerald-500 bg-emerald-50/30 shadow-md"
-                  : "border-gray-50"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <QrcodeOutlined className="text-3xl text-emerald-500" />
-                <div>
-                  <Text className="block font-black italic uppercase text-sm">
-                    Quét mã QR
-                  </Text>
-                  <Text className="text-[10px] text-gray-400 font-bold uppercase italic">
-                    Thanh toán nhanh - Xử lý ngay
-                  </Text>
-                </div>
-              </div>
-            </Radio>
-            <Radio
-              value="bank"
-              className={`w-full p-6 border-2 rounded-[24px] transition-all ${
-                paymentMethod === "bank"
-                  ? "border-blue-500 bg-blue-50/30 shadow-md"
-                  : "border-gray-50"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <BankOutlined className="text-3xl text-blue-500" />
-                <div>
-                  <Text className="block font-black italic uppercase text-sm">
-                    Chuyển khoản
-                  </Text>
-                  <Text className="text-[10px] text-gray-400 font-bold uppercase italic">
-                    Thông tin tài khoản ngân hàng
-                  </Text>
-                </div>
-              </div>
-            </Radio>
-            <Radio
-              value="cash"
-              className={`w-full p-6 border-2 rounded-[24px] transition-all ${
-                paymentMethod === "cash"
-                  ? "border-orange-500 bg-orange-50/30 shadow-md"
-                  : "border-gray-50"
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <WalletOutlined className="text-3xl text-orange-500" />
-                <div>
-                  <Text className="block font-black italic uppercase text-sm">
-                    Tại quầy
-                  </Text>
-                  <Text className="text-[10px] text-gray-400 font-bold uppercase italic">
-                    Nhận món và gửi tiền tại quầy
-                  </Text>
-                </div>
-              </div>
-            </Radio>
-          </Space>
-        </Radio.Group>
-      </Card>
-
-      {paymentMethod === "qr" && (
-        <Card className="text-center shadow-2xl border-none rounded-[32px] p-6 bg-white animate-in zoom-in-95 duration-500">
-          <Title
-            level={5}
-            className="font-black italic uppercase text-emerald-600 mb-6"
-          >
-            Mã thanh toán QR
-          </Title>
-          <div className="relative inline-block p-4 border-4 border-emerald-500 rounded-[32px] shadow-2xl">
-            <div className="w-56 h-56 bg-white flex items-center justify-center relative">
-              <QrcodeOutlined className="text-8xl text-emerald-500 opacity-20" />
-              <div className="absolute inset-0 flex items-center justify-center p-2">
-                <div className="w-full h-full border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center">
-                  <Text className="text-[8px] font-mono break-all px-2 uppercase">
-                    {generateQRContent()}
-                  </Text>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 bg-emerald-50 p-6 rounded-[28px] border border-emerald-100 max-w-sm mx-auto shadow-inner text-left">
-            <div className="flex justify-between mb-2">
-              <Text className="font-black italic uppercase text-[10px] text-emerald-600">
-                STK:
-              </Text>
-              <Text className="font-black italic text-emerald-800">
-                {mockQRData.accountNumber}
-              </Text>
-            </div>
-            <div className="flex justify-between">
-              <Text className="font-black italic uppercase text-[10px] text-emerald-600">
-                SỐ TIỀN:
-              </Text>
-              <Text className="text-xl font-black italic text-emerald-700">
-                {total.toLocaleString("vi-VN")}đ
-              </Text>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <div className="flex gap-4 pt-4">
-        <Button
-          size="large"
-          onClick={() => setCurrentStep(0)}
-          className="flex-1 h-16 rounded-[20px] font-black italic uppercase text-gray-400 border-none shadow-md"
-        >
-          Quay lại
-        </Button>
-        <Button
-          type="primary"
-          size="large"
-          onClick={handlePaymentSubmit}
-          loading={isProcessing}
-          className="flex-[2] h-16 rounded-[20px] bg-emerald-600 border-none font-black italic uppercase shadow-xl text-lg hover:scale-105"
-        >
-          Xác nhận đặt hàng
-        </Button>
+  const renderQRSection = () => (
+    <Card className="text-center shadow-2xl border-none rounded-[32px] p-6 bg-white animate-in zoom-in-95 duration-500 overflow-hidden relative">
+      <div className="absolute top-0 right-0 p-4">
+        <Tag color="green" className="font-bold italic animate-pulse">
+          SỐNG
+        </Tag>
       </div>
-    </div>
-  );
-
-  const renderCompleteStep = () => (
-    <div className="animate-in fade-in zoom-in duration-700">
-      <Result
-        status="success"
-        title={
-          <span className="text-4xl font-black italic uppercase text-emerald-600">
-            Đặt hàng thành công!
-          </span>
-        }
-        subTitle={
-          <div className="space-y-4 pt-4">
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-emerald-50 inline-block">
-              <Text className="text-gray-400 font-black italic uppercase text-xs">
-                Mã định danh đơn hàng
-              </Text>
-              <br />
-              <Text className="text-2xl font-black italic text-emerald-700 tracking-wider">
-                {orderId}
-              </Text>
-            </div>
-            <p className="font-bold italic text-gray-400">
-              Cực phẩm của bạn đang được chuẩn bị rực rỡ!
-            </p>
+      <Title
+        level={5}
+        className="font-black italic uppercase text-emerald-600 mb-6"
+      >
+        Quét mã VietQR để thanh toán
+      </Title>
+      <div className="bg-[#f0fdf4] p-4 rounded-[32px] inline-block mb-6 shadow-inner border border-emerald-100">
+        <AntdImage
+          src={qrImageUrl}
+          width={280}
+          className="rounded-2xl shadow-2xl"
+          placeholder={
+            <LoadingOutlined className="text-6xl text-emerald-300" />
+          }
+        />
+      </div>
+      <div className="mt-2 mb-6">
+        <Text className="font-black italic text-emerald-600 uppercase text-xs animate-bounce block">
+          <LoadingOutlined className="mr-2" /> Đang chờ tiền về túi...
+        </Text>
+      </div>
+      <div className="space-y-4 max-w-sm mx-auto text-left">
+        <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 flex justify-between items-center">
+          <div className="flex-1">
+            <Text className="text-[10px] text-gray-400 block font-black uppercase">
+              Nội dung chuyển khoản
+            </Text>
+            <Text className="font-black italic text-emerald-700 text-lg">
+              {orderId} THANH TOAN
+            </Text>
           </div>
-        }
-        extra={[
           <Button
-            type="primary"
-            key="home"
-            onClick={() => navigate("/")}
-            className="h-14 px-10 rounded-2xl bg-emerald-600 border-none font-black italic uppercase shadow-lg shadow-emerald-100"
-          >
-            Về trang chủ
-          </Button>,
-          <Button
-            key="products"
-            onClick={() => navigate("/products")}
-            className="h-14 px-10 rounded-2xl border-gray-100 font-bold uppercase italic text-gray-400"
-          >
-            Tiếp tục mua sắm
-          </Button>,
-        ]}
-      />
-    </div>
+            icon={<CopyOutlined />}
+            type="text"
+            className="text-emerald-500"
+            onClick={() => copyToClipboard(`${orderId} THANH TOAN`)}
+          />
+        </div>
+      </div>
+    </Card>
   );
 
   return (
-    <div className="min-h-screen bg-[#f8fafb] py-16 animate-in fade-in duration-500">
+    <div className="min-h-screen bg-[#f8fafb] py-16">
       <div className="container mx-auto px-6 max-w-7xl">
         <div className="flex items-center justify-between mb-12">
           <Title
             level={1}
             className="!mb-0 !font-black !italic !uppercase !text-slate-800 tracking-tighter"
           >
-            🚀 Thanh toán <span className="text-emerald-500">Đơn hàng</span>
+            🚀 Thanh toán <span className="text-emerald-500">Cực phẩm</span>
           </Title>
-          <div className="flex gap-2">
-            <div className="w-12 h-2 bg-emerald-500 rounded-full shadow-sm shadow-emerald-100"></div>
-            <div className="w-6 h-2 bg-gray-200 rounded-full"></div>
-          </div>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            type="text"
+            onClick={() => navigate(-1)}
+            className="font-bold uppercase italic text-gray-400"
+          >
+            Quay lại
+          </Button>
         </div>
-
         <Steps
           current={currentStep}
           items={steps}
           className="mb-16 custom-checkout-steps"
         />
-
         <Row gutter={[48, 48]}>
           <Col xs={24} lg={15}>
-            {currentStep === 0 && renderInfoStep()}
-            {currentStep === 1 && renderPaymentStep()}
-            {currentStep === 2 && renderCompleteStep()}
+            {currentStep === 0 && (
+              <Card className="shadow-2xl border-none rounded-[32px] p-8">
+                <Title
+                  level={4}
+                  className="!font-black !italic !uppercase !text-slate-800 mb-8"
+                >
+                  <UserOutlined className="text-blue-500 mr-2" /> Thông tin
+                  khách hàng
+                </Title>
+                <Form form={form} layout="vertical" onFinish={handleInfoSubmit}>
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item
+                        name="customerName"
+                        label={
+                          <span className="font-black uppercase italic text-[10px] text-gray-400">
+                            Họ tên
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                      >
+                        <Input
+                          placeholder="Tên của bạn"
+                          className="rounded-xl h-12 font-bold"
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item
+                        name="phone"
+                        label={
+                          <span className="font-black uppercase italic text-[10px] text-gray-400">
+                            SĐT
+                          </span>
+                        }
+                        rules={[{ required: true }]}
+                      >
+                        <Input
+                          placeholder="09xxxxxxx"
+                          className="rounded-xl h-12 font-bold"
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Form.Item
+                    name="email"
+                    label={
+                      <span className="font-black uppercase italic text-[10px] text-gray-400">
+                        Email
+                      </span>
+                    }
+                  >
+                    <Input
+                      placeholder="Email"
+                      className="rounded-xl h-12 font-bold"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    name="notes"
+                    label={
+                      <span className="font-black uppercase italic text-[10px] text-gray-400">
+                        Ghi chú
+                      </span>
+                    }
+                  >
+                    <TextArea
+                      rows={3}
+                      placeholder="Ghi chú thêm..."
+                      className="rounded-xl font-bold"
+                    />
+                  </Form.Item>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    size="large"
+                    block
+                    className="h-16 rounded-[24px] bg-emerald-600 font-black italic uppercase"
+                  >
+                    Tiếp tục thanh toán
+                  </Button>
+                </Form>
+              </Card>
+            )}
+            {currentStep === 1 && (
+              <div className="space-y-6">
+                <Card className="shadow-2xl border-none rounded-[32px] p-8">
+                  <Title
+                    level={4}
+                    className="!font-black !italic !uppercase !text-slate-800 mb-8"
+                  >
+                    <CreditCardOutlined className="text-blue-500 mr-2" /> Phương
+                    thức thanh toán
+                  </Title>
+                  <Radio.Group
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full"
+                  >
+                    <Space
+                      direction="vertical"
+                      className="w-full"
+                      size="middle"
+                    >
+                      <Radio
+                        value="qr"
+                        className={`w-full p-6 border-2 rounded-[24px] ${
+                          paymentMethod === "qr"
+                            ? "border-emerald-500 bg-emerald-50/20"
+                            : "border-gray-50"
+                        }`}
+                      >
+                        <Space>
+                          <QrcodeOutlined className="text-2xl text-emerald-500" />{" "}
+                          <Text className="font-black italic uppercase">
+                            VietQR (Tự động chốt đơn)
+                          </Text>
+                        </Space>
+                      </Radio>
+                      <Radio
+                        value="cash"
+                        className={`w-full p-6 border-2 rounded-[24px] ${
+                          paymentMethod === "cash"
+                            ? "border-orange-500 bg-orange-50/20"
+                            : "border-gray-50"
+                        }`}
+                      >
+                        <Space>
+                          <WalletOutlined className="text-2xl text-orange-500" />{" "}
+                          <Text className="font-black italic uppercase">
+                            Tiền mặt tại quầy
+                          </Text>
+                        </Space>
+                      </Radio>
+                    </Space>
+                  </Radio.Group>
+                </Card>
+                {paymentMethod === "qr" ? (
+                  renderQRSection()
+                ) : (
+                  <Card className="text-center shadow-xl border-none rounded-[32px] p-10 bg-white">
+                    <WalletOutlined className="text-6xl text-orange-400 mb-4" />
+                    <Title level={4} className="font-black italic uppercase">
+                      Thanh toán tại quầy
+                    </Title>
+                  </Card>
+                )}
+                <div className="flex gap-4">
+                  <Button
+                    size="large"
+                    onClick={() => setCurrentStep(0)}
+                    className="flex-1 h-16 rounded-2xl font-black italic uppercase"
+                  >
+                    Quay lại
+                  </Button>
+                  {paymentMethod === "cash" && (
+                    <Button
+                      type="primary"
+                      size="large"
+                      onClick={handleManualConfirmCash}
+                      loading={isProcessing}
+                      className="flex-[2] h-16 rounded-2xl bg-emerald-600 font-black italic uppercase"
+                    >
+                      Xác nhận đơn hàng
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+            {currentStep === 2 && (
+              <Result
+                status="success"
+                title={
+                  <span className="text-4xl font-black italic uppercase text-emerald-600">
+                    Đặt hàng thành công!
+                  </span>
+                }
+                subTitle={
+                  <Text className="font-bold italic text-gray-400">
+                    Đơn hàng {orderId} đang được chuẩn bị!
+                  </Text>
+                }
+                extra={[
+                  <Button
+                    type="primary"
+                    key="home"
+                    onClick={() => navigate("/")}
+                    className="h-14 px-10 rounded-2xl bg-emerald-600 font-black italic uppercase"
+                  >
+                    Về trang chủ
+                  </Button>,
+                ]}
+              />
+            )}
           </Col>
-
           {currentStep < 2 && (
             <Col xs={24} lg={9}>
               {renderOrderSummary()}
@@ -524,12 +553,6 @@ const Checkout: React.FC = () => {
           )}
         </Row>
       </div>
-
-      <style>{`
-        .custom-checkout-steps .ant-steps-item-title { font-weight: 900 !important; font-style: italic !important; text-transform: uppercase !important; font-size: 12px !important; }
-        .custom-checkout-steps .ant-steps-item-process .ant-steps-item-icon { background: #10b981 !important; border-color: #10b981 !important; }
-        .custom-checkout-steps .ant-steps-item-finish .ant-steps-item-icon { border-color: #10b981 !important; color: #10b981 !important; }
-      `}</style>
     </div>
   );
 };
