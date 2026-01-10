@@ -9,8 +9,6 @@ import {
   Spin,
   Typography,
   Space,
-  Card,
-  Collapse,
   Select,
   Empty,
   Pagination,
@@ -23,6 +21,7 @@ import {
   SortAscendingOutlined,
   InboxOutlined,
   SearchOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { ProductCard } from "@/components/customer/ProductCard";
@@ -33,7 +32,6 @@ import customerProductService, {
 } from "@/services/customer/productService";
 
 const { Title, Text } = Typography;
-const { Panel } = Collapse;
 const { Option } = Select;
 
 interface RawProductResponse {
@@ -56,9 +54,7 @@ const Products: React.FC = () => {
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const [selectedCategory, setSelectedCategory] = useState<string | number>(
-    "all"
-  );
+  const [selectedCategory, setSelectedCategory] = useState<string | number>("all");
   const [selectedBrand, setSelectedBrand] = useState<string | number>("all");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [sortOrder, setSortOrder] = useState<string>("latest");
@@ -71,11 +67,7 @@ const Products: React.FC = () => {
     const dataObj = res as { data?: T[] | { data: T[] } };
     if (!dataObj || !dataObj.data) return [];
     if (Array.isArray(dataObj.data)) return dataObj.data;
-    if (
-      typeof dataObj.data === "object" &&
-      "data" in dataObj.data &&
-      Array.isArray(dataObj.data.data)
-    ) {
+    if (typeof dataObj.data === "object" && "data" in dataObj.data && Array.isArray(dataObj.data.data)) {
       return dataObj.data.data;
     }
     return [];
@@ -109,24 +101,18 @@ const Products: React.FC = () => {
         });
 
         const rawArray = extractData<RawProductResponse>(res);
-        const mappedProducts: Product[] = rawArray.map(
-          (p: RawProductResponse) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            price: Number(p.price),
-            category:
-              (typeof p.category === "object"
-                ? p.category?.name
-                : p.category) || "Món ăn",
-            brand:
-              (typeof p.brand === "object" ? p.brand?.name : p.brand) || "",
-            image: p.image,
-            stock: Number(p.stock) || 0,
-            unit: p.unit || "món",
-            is_active: Boolean(p.available),
-          })
-        );
+        const mappedProducts: Product[] = rawArray.map((p: RawProductResponse) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: Number(p.price),
+          category: (typeof p.category === "object" ? p.category?.name : p.category) || "Món ăn",
+          brand: (typeof p.brand === "object" ? p.brand?.name : p.brand) || "",
+          image: p.image,
+          stock: Number(p.stock) || 0,
+          unit: p.unit || "món",
+          is_active: Boolean(p.available),
+        }));
 
         setProducts(mappedProducts);
         setCurrentPage(1);
@@ -141,20 +127,12 @@ const Products: React.FC = () => {
 
   const indexOfLastProduct = currentPage * pageSize;
   const indexOfFirstProduct = indexOfLastProduct - pageSize;
-  const currentProducts = products.slice(
-    indexOfFirstProduct,
-    indexOfLastProduct
-  );
+  const currentProducts = products.slice(indexOfFirstProduct, indexOfLastProduct);
 
   useEffect(() => {
     const updateCart = () => {
       const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-      setCartCount(
-        cart.reduce(
-          (sum: number, item: { quantity: number }) => sum + item.quantity,
-          0
-        )
-      );
+      setCartCount(cart.reduce((sum: number, item: { quantity: number }) => sum + item.quantity, 0));
     };
     updateCart();
     window.addEventListener("storage", updateCart);
@@ -163,9 +141,7 @@ const Products: React.FC = () => {
 
   const handleAddToCart = (product: Product) => {
     const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    const existing = cart.find(
-      (item: { id: number }) => item.id === product.id
-    );
+    const existing = cart.find((item: { id: number }) => item.id === product.id);
     if (existing) existing.quantity += 1;
     else cart.push({ ...product, quantity: 1 });
     localStorage.setItem("cart", JSON.stringify(cart));
@@ -173,226 +149,152 @@ const Products: React.FC = () => {
     message.success(`Đã thêm ${product.name}!`);
   };
 
-  // LOGIC MỚI: HÀM MUA NGAY
   const handleBuyNow = (product: Product) => {
-    // Đóng gói sản phẩm đơn lẻ (số lượng mặc định là 1 khi mua từ danh sách)
-    const buyNowItem = {
-      ...product,
-      quantity: 1,
-    };
-
-    // Điều hướng thẳng đến checkout với state chứa món hàng này
+    const buyNowItem = { ...product, quantity: 1 };
     navigate("/checkout", { state: { buyNowItem } });
   };
 
   return (
     <div className="min-h-screen bg-[#f4f7f6] pb-20">
-      <div className="bg-[#064e3b] py-8 px-10 text-white flex justify-between items-center shadow-lg">
-        <Title
-          level={3}
-          className="text-white! m-0 font-black italic uppercase"
-        >
-          🛒 SPORT STORE
-        </Title>
-        <Badge count={cartCount} showZero>
-          <Button
-            icon={<ShoppingCartOutlined />}
-            size="large"
-            className="rounded-xl font-bold bg-emerald-500 border-none shadow-md h-12 px-8"
-            onClick={() => navigate("/cart")}
-          >
-            GIỎ HÀNG
-          </Button>
-        </Badge>
+      {/* Header Hero (Giữ nguyên cực phẩm) */}
+      <div className="bg-[#022c22] relative overflow-hidden py-24 px-10">
+        <div className="absolute right-[-5%] top-[-10%] w-[400px] h-[400px] rounded-full bg-white/5 blur-3xl pointer-events-none" />
+        <div className="max-w-[1600px] mx-auto relative z-10">
+          <Text className="text-green-400 font-black italic uppercase tracking-[0.3em] text-xs block mb-4">WESPORT PRODUCT LIST:</Text>
+          <Title level={1} className="!text-white !text-7xl !font-black !italic !uppercase !m-0 !tracking-tighter !leading-none">
+            DANH SÁCH SẢN PHẨM <br />
+            <span className="text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.4)]">ĐỈNH CAO</span>
+          </Title>
+          <div className="w-24 h-1.5 bg-yellow-400 mt-8 mb-6 rounded-full" />
+        </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto px-6 py-10">
-        <Row gutter={[20, 20]} align="top">
-          <Col xs={24} md={4}>
-            <Collapse
-              ghost
-              expandIconPosition="end"
-              className="bg-white rounded-2xl shadow-sm"
-              expandIcon={({ isActive }) => (
-                <RightOutlined rotate={isActive ? 90 : 0} />
-              )}
-            >
-              <Panel
-                header={
-                  <Space className="font-bold uppercase text-[11px] italic">
-                    <FilterOutlined className="text-blue-500" /> THƯƠNG HIỆU
-                  </Space>
-                }
-                key="1"
-                style={{ border: "none" }}
-              >
-                <div className="flex flex-col gap-1 pb-2">
+      <div className="max-w-[1900px] mx-auto px-6 -mt-12 relative z-20">
+        <Row gutter={[20, 20]}>
+          {/* 🛑 CỘT 1: THƯƠNG HIỆU - ĐÃ XÓA PHẦN DƯ */}
+          <Col xs={24} md={5} lg={4}>
+            <div className="bg-white rounded-[24px] shadow-md overflow-hidden border border-gray-100 flex flex-col h-fit">
+              <div className="p-5 border-b border-gray-50 bg-gray-50/30 flex justify-between items-center">
+                <Space className="font-black uppercase text-xs italic text-slate-800">
+                  <FilterOutlined className="text-blue-600" /> THƯƠNG HIỆU
+                </Space>
+                <RightOutlined className="text-gray-300 rotate-90" />
+              </div>
+              <div className="p-4 overflow-y-auto max-h-[600px] custom-scrollbar">
+                <div className="flex flex-col gap-1">
                   <div
-                    className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
-                      selectedBrand === "all"
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-400 hover:bg-gray-50"
-                    }`}
+                    className={`cursor-pointer px-6 py-3 rounded-xl transition-all text-[11px] font-bold uppercase ${selectedBrand === "all" ? "bg-blue-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"}`}
                     onClick={() => setSelectedBrand("all")}
                   >
-                    Tất cả hiệu
+                    TẤT CẢ HIỆU
                   </div>
                   {brands.map((b) => (
                     <div
                       key={b.id}
-                      className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
-                        selectedBrand === b.id
-                          ? "bg-blue-600 text-white"
-                          : "text-gray-400 hover:bg-gray-50"
-                      }`}
+                      className={`cursor-pointer px-6 py-3 rounded-xl transition-all text-[11px] font-bold uppercase ${selectedBrand === b.id ? "bg-blue-600 text-white shadow-lg" : "text-gray-500 hover:bg-gray-50"}`}
                       onClick={() => setSelectedBrand(b.id)}
                     >
                       {b.name}
                     </div>
                   ))}
                 </div>
-              </Panel>
-            </Collapse>
+              </div>
+            </div>
           </Col>
 
-          <Col xs={24} md={4}>
-            <Collapse
-              ghost
-              expandIconPosition="end"
-              className="bg-white rounded-2xl shadow-sm"
-              expandIcon={({ isActive }) => (
-                <RightOutlined rotate={isActive ? 90 : 0} />
-              )}
-            >
-              <Panel
-                header={
-                  <Space className="font-bold uppercase text-[11px] italic">
-                    <AppstoreOutlined className="text-emerald-500" /> DANH MỤC
-                  </Space>
-                }
-                key="2"
-                style={{ border: "none" }}
-              >
-                <div className="flex flex-col gap-1 pb-2">
+          {/* 🛑 CỘT 2: DANH MỤC - ĐÃ XÓA PHẦN DƯ */}
+          <Col xs={24} md={5} lg={4}>
+            <div className="bg-white rounded-[24px] shadow-md overflow-hidden border border-gray-100 flex flex-col h-fit">
+              <div className="p-5 border-b border-gray-50 bg-gray-50/30 flex justify-between items-center">
+                <Space className="font-black uppercase text-xs italic text-slate-800">
+                  <AppstoreOutlined className="text-emerald-600" /> DANH MỤC
+                </Space>
+                <RightOutlined className="text-gray-300 rotate-90" />
+              </div>
+              <div className="p-4 overflow-y-auto max-h-[600px] custom-scrollbar">
+                <div className="flex flex-col gap-1">
                   <div
-                    className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
-                      selectedCategory === "all"
-                        ? "bg-emerald-600 text-white"
-                        : "text-gray-400 hover:bg-gray-50"
-                    }`}
+                    className={`cursor-pointer px-6 py-3 rounded-xl transition-all text-[11px] font-bold uppercase ${selectedCategory === "all" ? "bg-emerald-600 text-white shadow-lg" : "text-gray-400 hover:bg-gray-50"}`}
                     onClick={() => setSelectedCategory("all")}
                   >
-                    Tất cả món
+                    TẤT CẢ MÓN
                   </div>
                   {categories.map((c) => (
                     <div
                       key={c.id}
-                      className={`cursor-pointer px-4 py-2 rounded-lg transition-all text-[10px] font-bold uppercase ${
-                        selectedCategory === c.id
-                          ? "bg-emerald-600 text-white"
-                          : "text-gray-400 hover:bg-gray-50"
-                      }`}
+                      className={`cursor-pointer px-6 py-3 rounded-xl transition-all text-[11px] font-bold uppercase ${selectedCategory === c.id ? "bg-emerald-600 text-white shadow-lg" : "text-gray-500 hover:bg-gray-50"}`}
                       onClick={() => setSelectedCategory(c.id)}
                     >
                       {c.name}
                     </div>
                   ))}
                 </div>
-              </Panel>
-            </Collapse>
+              </div>
+            </div>
           </Col>
 
-          <Col xs={24} md={16}>
-            <div className="bg-white rounded-[24px] p-4 mb-6 shadow-sm flex flex-wrap gap-4 items-center border-none">
+          {/* CỘT 3: TÌM KIẾM & DANH SÁCH (Giữ nguyên) */}
+          <Col xs={24} md={14} lg={16}>
+            <div className="bg-white rounded-[24px] p-5 mb-6 shadow-md flex flex-wrap gap-4 items-center border-none">
               <Input
-                placeholder="Tìm món bạn cần ngay (ví dụ: 'giày', 'áo')..."
+                placeholder="Tìm món bạn cần ngay..."
                 size="large"
                 allowClear
                 prefix={<SearchOutlined className="text-gray-300" />}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                style={{ flex: 3, borderRadius: "16px", padding: "0 15px" }}
+                style={{ flex: 3, borderRadius: "16px", height: "50px" }}
               />
               <Select
                 size="large"
                 defaultValue="latest"
                 onChange={setSortOrder}
-                style={{ flex: 1, minWidth: "150px" }}
+                style={{ flex: 1, minWidth: "150px", height: "50px" }}
                 suffixIcon={<SortAscendingOutlined />}
-                dropdownStyle={{ borderRadius: "12px" }}
               >
                 <Option value="latest">Mới nhất</Option>
-                <Option value="price-asc">Giá: Thấp → Cao</Option>
-                <Option value="price-desc">Giá: Cao → Thấp</Option>
-                <Option value="name-asc">Tên: A → Z</Option>
-                <Option value="name-desc">Tên: Z → A</Option>
+                <Option value="price-asc">Giá tăng dần</Option>
+                <Option value="price-desc">Giá giảm dần</Option>
               </Select>
+              <Badge count={cartCount} showZero>
+                <Button 
+                  icon={<ShoppingCartOutlined />} 
+                  size="large" 
+                  onClick={() => navigate("/cart")}
+                  className="h-[50px] rounded-2xl border-none bg-slate-900 text-white font-bold px-6 shadow-xl"
+                >
+                  GIỎ HÀNG
+                </Button>
+              </Badge>
             </div>
 
             {loading ? (
-              <div className="text-center py-40">
-                <Spin size="large" />
-              </div>
+              <div className="text-center py-40"><Spin size="large" /></div>
             ) : products.length > 0 ? (
               <>
-                <Row gutter={[16, 16]}>
+                <Row gutter={[20, 20]}>
                   {currentProducts.map((p) => (
                     <Col key={p.id} xs={24} sm={12} lg={8}>
-                      {/* CẬP NHẬT: Truyền handleBuyNow xuống ProductCard */}
-                      <ProductCard
-                        product={p}
-                        onAddToCart={handleAddToCart}
-                        onBuyNow={handleBuyNow}
-                      />
+                      <ProductCard product={p} onAddToCart={handleAddToCart} onBuyNow={handleBuyNow} />
                     </Col>
                   ))}
                 </Row>
-                <div className="mt-12 flex justify-center bg-white p-4 rounded-2xl shadow-sm">
-                  <Pagination
-                    current={currentPage}
-                    pageSize={pageSize}
-                    total={products.length}
-                    onChange={(page) => {
-                      setCurrentPage(page);
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    showSizeChanger={false}
-                  />
+                <div className="mt-12 flex justify-center bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                  <Pagination current={currentPage} pageSize={pageSize} total={products.length} onChange={setCurrentPage} showSizeChanger={false} />
                 </div>
               </>
             ) : (
-              <div className="bg-white rounded-[24px] py-20 text-center shadow-sm">
-                <Empty
-                  image={
-                    <InboxOutlined style={{ fontSize: 60, color: "#d9d9d9" }} />
-                  }
-                  description={
-                    <Space direction="vertical">
-                      <Text strong className="text-lg text-slate-600">
-                        Không tìm thấy sản phẩm "{searchTerm}"...
-                      </Text>
-                      <Text type="secondary">
-                        Thử từ khóa khác hoặc xóa bộ lọc để xem thêm món mới
-                        nhé!
-                      </Text>
-                      <Button
-                        type="primary"
-                        className="bg-emerald-600 border-none rounded-lg mt-4"
-                        onClick={() => {
-                          setSelectedBrand("all");
-                          setSelectedCategory("all");
-                          setSearchTerm("");
-                        }}
-                      >
-                        Xem tất cả
-                      </Button>
-                    </Space>
-                  }
-                />
+              <div className="bg-white rounded-[40px] py-32 text-center shadow-md border border-dashed border-gray-200">
+                <Empty description={<Text className="text-xl font-black italic text-slate-400 uppercase">Không tìm thấy cực phẩm nào...</Text>} />
               </div>
             )}
           </Col>
         </Row>
       </div>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+      `}</style>
     </div>
   );
 };
