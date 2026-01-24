@@ -1,68 +1,96 @@
-import api from '../api';
+import api from "../api";
+
+// --- ĐỊNH NGHĨA TYPES CHUẨN XỊN ---
+export interface OrderItem {
+  id: number;
+  product_id?: number;
+  name: string;
+  price: number;
+  quantity: number;
+  unit: string;
+  image: string;
+}
 
 export interface Order {
   id: number;
   order_code: string;
-  customer_id?: number;
-  customer_name?: string;
-  customer_phone?: string;
-  items: any[];
-  subtotal: number;
-  discount: number;
-  tax: number;
-  total: number;
-  status: 'pending' | 'preparing' | 'completed' | 'cancelled';
-  payment_method?: string;
-  payment_status: 'unpaid' | 'paid' | 'refunded';
-  staff_id?: number;
-  staff_name?: string;
+  customer_name: string;
+  phone: string;
+  email?: string;
   notes?: string;
+  payment_method: string;
+  total_amount: number;
+  /** * 🛑 ĐỒNG BỘ TRẠNG THÁI: Phải khớp 100% với Migration Database và Giao diện
+   * Thêm 'paid', 'preparing' để hết lỗi đỏ so sánh
+   */
+  status:
+    | "pending" // Chờ xác nhận
+    | "confirmed" // Đã xác nhận ⬅️ THÊM DÒNG NÀY ĐÂY BRO
+    | "paid" // Đã thanh toán
+    | "preparing" // Đang chuẩn bị
+    | "completed" // Hoàn thành
+    | "cancelled"; // Đã hủy
   created_at: string;
-  updated_at: string;
+  items?: OrderItem[];
 }
 
-export interface OrderFilters {
-  status?: string;
-  payment_status?: string;
-  customer_id?: number;
-  staff_id?: number;
-  date_from?: string;
-  date_to?: string;
-  page?: number;
-  per_page?: number;
+export interface OrderResponse {
+  success: boolean;
+  data: Order[];
+  message?: string;
 }
 
-export interface OrderStatistics {
-  total_orders: number;
-  total_revenue: number;
-  average_order_value: number;
-  orders_by_status: Record<string, number>;
+export interface SingleOrderResponse {
+  success: boolean;
+  data: Order;
+  message?: string;
 }
 
-// Admin Order API
+// Interface cho dữ liệu gửi lên khi sửa
+export interface UpdateOrderPayload {
+  customer_name: string;
+  phone: string;
+  notes?: string;
+  status: Order["status"];
+  total_amount: number;
+  items: {
+    product_id: number;
+    price: number;
+    quantity: number;
+  }[];
+}
+
 const adminOrderService = {
-  // Lấy danh sách đơn hàng
-  getOrders: async (filters?: OrderFilters) => {
-    const response = await api.get('/admin/orders', { params: filters });
-    return response.data;
+  getAllOrders: () => {
+    return api.get<OrderResponse>("/admin/orders");
   },
 
-  // Lấy chi tiết đơn hàng
-  getOrder: async (id: number) => {
-    const response = await api.get(`/admin/orders/${id}`);
-    return response.data;
+  getOrderDetails: (id: number) => {
+    return api.get<SingleOrderResponse>(`/admin/orders/${id}`);
   },
 
-  // Cập nhật trạng thái
-  updateStatus: async (id: number, status: Order['status']) => {
-    const response = await api.patch(`/admin/orders/${id}/status`, { status });
-    return response.data;
+  /**
+   * Cập nhật trạng thái đơn hàng
+   * Khớp Type Order["status"] để đảm bảo không truyền sai string
+   */
+  updateStatus: (id: number, status: Order["status"]) => {
+    return api.put<{ success: boolean; message: string }>(
+      `/admin/orders/${id}/status`,
+      { status },
+    );
   },
 
-  // Lấy thống kê
-  getStatistics: async (date_from?: string, date_to?: string): Promise<OrderStatistics> => {
-    const response = await api.get('/admin/orders/statistics', { params: { date_from, date_to } });
-    return response.data;
+  deleteOrder: (id: number) => {
+    return api.delete<{ success: boolean; message: string }>(
+      `/admin/orders/${id}`,
+    );
+  },
+
+  updateOrder: (id: number, data: UpdateOrderPayload) => {
+    return api.put<{ success: boolean; message: string }>(
+      `/admin/orders/${id}`,
+      data,
+    );
   },
 };
 

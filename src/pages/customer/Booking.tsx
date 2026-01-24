@@ -15,6 +15,7 @@ import {
   Switch,
   TimePicker,
   Typography,
+  Form,
 } from "antd";
 import {
   EnvironmentOutlined,
@@ -33,7 +34,6 @@ import customerFieldService, { Field } from "@/services/customer/fieldService";
 import customerBookingService, {
   CreateBookingData,
 } from "@/services/customer/bookingService";
-
 dayjs.locale("vi");
 const { Option } = Select;
 const { Text, Title } = Typography;
@@ -103,6 +103,7 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const fieldIdFromUrl = searchParams.get("fieldId");
+  const [form] = Form.useForm(); // Khai báo form để validate báo đỏ
 
   // --- STATES ---
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -155,7 +156,7 @@ export default function BookingPage() {
         const dateStr = selectedDate.format("YYYY-MM-DD");
         const response = await customerFieldService.getSchedule(
           fieldId,
-          dateStr
+          dateStr,
         );
         const data = response.data?.data || response.data || [];
         setTimeSlots(data);
@@ -165,7 +166,7 @@ export default function BookingPage() {
         setScheduleLoading(false);
       }
     },
-    []
+    [],
   );
 
   useEffect(() => {
@@ -214,40 +215,37 @@ export default function BookingPage() {
   }, [isManualTime, manualTime, selectedTime, timeSlots, currentField]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setCustomerInfo({
-      ...customerInfo,
-      phone: e.target.value.replace(/[^0-9]/g, ""),
-    });
+    const val = e.target.value.replace(/[^0-9]/g, "");
+    setCustomerInfo({ ...customerInfo, phone: val });
+    form.setFieldsValue({ phone: val }); // Đồng bộ với Form Antd để validate
   };
 
   const handleSubmit = async () => {
-    if (
-      !date ||
-      !currentField ||
-      !pricing ||
-      !customerInfo.name ||
-      !customerInfo.phone
-    ) {
-      message.warning("Vui lòng nhập đầy đủ thông tin và thời gian!");
-      return;
-    }
-
-    setIsSubmitting(true);
-    const bookingDateStr = date.format("YYYY-MM-DD");
-    const bookingData: CreateBookingData = {
-      field_id: currentField.id,
-      start_time: `${bookingDateStr} ${pricing.startTimeStr}:00`,
-      end_time: `${bookingDateStr} ${pricing.endTimeStr}:00`,
-      customer_name: customerInfo.name,
-      customer_phone: customerInfo.phone,
-      notes: customerInfo.note,
-    };
-
     try {
+      // Kích hoạt validate của Ant Design
+      await form.validateFields();
+
+      if (!date || !currentField || !pricing) {
+        message.warning("Vui lòng chọn thời gian đặt sân!");
+        return;
+      }
+
+      setIsSubmitting(true);
+      const bookingDateStr = date.format("YYYY-MM-DD");
+      const bookingData: CreateBookingData = {
+        field_id: currentField.id,
+        start_time: `${bookingDateStr} ${pricing.startTimeStr}:00`,
+        end_time: `${bookingDateStr} ${pricing.endTimeStr}:00`,
+        customer_name: customerInfo.name,
+        customer_phone: customerInfo.phone,
+        notes: customerInfo.note,
+      };
+
       await customerBookingService.createBooking(bookingData);
       message.success("Đặt sân thành công rực rỡ!");
-      navigate("/fields"); // Về danh sách đơn đặt của khách
-    } catch (error: unknown) {
+      navigate("/fields");
+    } catch (error: any) {
+      if (error.errorFields) return; // Nếu lỗi validate form thì dừng
       const err = error as { response?: { data?: { message?: string } } };
       message.error(err.response?.data?.message || "Lỗi khi lưu dữ liệu.");
     } finally {
@@ -306,7 +304,7 @@ export default function BookingPage() {
                     value={currentField?.id}
                     onChange={(id) =>
                       setCurrentField(
-                        allFields.find((f) => f.id === id) || null
+                        allFields.find((f) => f.id === id) || null,
                       )
                     }
                   >
@@ -352,48 +350,55 @@ export default function BookingPage() {
               {!isManualTime ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {timeSlots.map((slot) => {
-                    const isBooked = slot.status === "booked";
-                    const isSelected = selectedTime === slot.start_time;
+                    const slotStart = dayjs(
+                      `${date?.format("YYYY-MM-DD")} ${slot.start_time}`,
+                    );
+
+                    // 1. Kiểm tra giờ quá khứ (Cho phép trễ 5p tránh lag)
+                    const isPast =
+                      date?.isSame(dayjs(), "day") &&
+                      slotStart.isBefore(dayjs().add(5, "minute"));
+
+                    // 2. Ép kiểu về string để so sánh an toàn tuyệt đối
+                    const isBooked = String(slot.status).trim() === "booked";
+
+                    // 🛑 BIẾN QUYẾT ĐỊNH: Nếu trùng lịch hoặc hết giờ đều khóa
+                    const isDisabled = isBooked || isPast;
+
                     return (
                       <div
                         key={slot.start_time}
                         onClick={() =>
-                          !isBooked && setSelectedTime(slot.start_time)
-                        }
-                        className={`relative p-4 border-2 rounded-xl cursor-pointer transition-all text-center
-                          ${
-                            isBooked
-                              ? "bg-gray-50 border-gray-100 cursor-not-allowed opacity-50"
-                              : "bg-white hover:border-green-400 shadow-sm"
-                          }
-                          ${
-                            isSelected
-                              ? "border-green-500 bg-green-50"
-                              : "border-gray-100"
-                          }`}
+                          !isDisabled && setSelectedTime(slot.start_time)
+                        } // Không cho click nếu disabled
+                        className={`relative p-4 border-2 rounded-xl transition-all text-center
+        ${
+          isDisabled
+            ? "bg-gray-100 border-gray-200 cursor-not-allowed opacity-60"
+            : "bg-white hover:border-green-400 cursor-pointer shadow-sm"
+        }
+        ${selectedTime === slot.start_time && !isDisabled ? "border-green-500 bg-green-50" : "border-gray-100"}`}
                       >
                         <ClockCircleOutlined
                           className={
-                            isBooked ? "text-gray-300" : "text-green-500"
+                            isDisabled ? "text-gray-400" : "text-green-500"
                           }
                         />
                         <div
-                          className={`font-bold mt-1 italic uppercase text-xs ${
-                            isBooked ? "text-gray-400" : "text-gray-800"
-                          }`}
+                          className={`font-bold mt-1 italic uppercase text-xs ${isDisabled ? "text-gray-400" : "text-gray-800"}`}
                         >
                           {slot.start_time} - {slot.end_time}
                         </div>
-                        <div className="text-xs mt-1 font-black text-green-600">
+                        <div
+                          className={`text-xs mt-1 font-black ${isDisabled ? "text-red-400" : "text-green-600"}`}
+                        >
+                          {/* HIỂN THỊ CHỮ THEO ĐÚNG TRẠNG THÁI */}
                           {isBooked
                             ? "ĐÃ ĐẶT"
-                            : `${slot.price.toLocaleString()}đ`}
+                            : isPast
+                              ? "HẾT GIỜ"
+                              : `${slot.price.toLocaleString()}đ`}
                         </div>
-                        {isSelected && (
-                          <div className="absolute top-1 right-2 text-green-600">
-                            <CheckOutlined style={{ fontSize: 12 }} />
-                          </div>
-                        )}
                       </div>
                     );
                   })}
@@ -411,6 +416,27 @@ export default function BookingPage() {
                         size="large"
                         className="w-full h-12 rounded-xl"
                         value={dayjs(manualTime.start, "HH:mm")}
+                        // Khóa giờ trong quá khứ cho TimePicker
+                        disabledTime={() => ({
+                          disabledHours: () => {
+                            if (!date?.isSame(dayjs(), "day")) return [];
+                            return Array.from(
+                              { length: dayjs().hour() },
+                              (_, i) => i,
+                            );
+                          },
+                          disabledMinutes: (selectedHour) => {
+                            if (
+                              !date?.isSame(dayjs(), "day") ||
+                              selectedHour > dayjs().hour()
+                            )
+                              return [];
+                            return Array.from(
+                              { length: dayjs().minute() },
+                              (_, i) => i,
+                            );
+                          },
+                        })}
                         onChange={(t) =>
                           setManualTime({
                             ...manualTime,
@@ -447,25 +473,46 @@ export default function BookingPage() {
               step={3}
               description="Để chúng tôi xác nhận đặt sân"
             >
-              <Space direction="vertical" className="w-full" size="middle">
-                <Input
-                  size="large"
-                  className="h-12 rounded-xl font-bold"
-                  prefix={<UserOutlined className="text-green-500" />}
-                  placeholder="Họ và tên của bạn"
-                  value={customerInfo.name}
-                  onChange={(e) =>
-                    setCustomerInfo({ ...customerInfo, name: e.target.value })
-                  }
-                />
-                <Input
-                  size="large"
-                  className="h-12 rounded-xl font-bold"
-                  prefix={<PhoneOutlined className="text-green-500" />}
-                  placeholder="Số điện thoại"
-                  value={customerInfo.phone}
-                  onChange={handlePhoneChange}
-                />
+              {/* Sử dụng Form Ant Design để validate báo đỏ rực rỡ */}
+              <Form form={form} layout="vertical" initialValues={customerInfo}>
+                <Form.Item
+                  name="name"
+                  rules={[
+                    { required: true, message: "Bro vui lòng nhập họ tên!" },
+                  ]}
+                >
+                  <Input
+                    size="large"
+                    className="h-12 rounded-xl font-bold"
+                    prefix={<UserOutlined className="text-green-500" />}
+                    placeholder="Họ và tên của bạn"
+                    onChange={(e) =>
+                      setCustomerInfo({ ...customerInfo, name: e.target.value })
+                    }
+                  />
+                </Form.Item>
+
+                <Form.Item
+                  name="phone"
+                  rules={[
+                    { required: true, message: "Số điện thoại là bắt buộc!" },
+                    {
+                      pattern: /^(0)[0-9]{9}$/,
+                      message:
+                        "Số điện thoại phải là 10 số, bắt đầu bằng số 0!",
+                    },
+                  ]}
+                >
+                  <Input
+                    size="large"
+                    className="h-12 rounded-xl font-bold"
+                    prefix={<PhoneOutlined className="text-green-500" />}
+                    placeholder="Số điện thoại (10 số)"
+                    value={customerInfo.phone}
+                    onChange={handlePhoneChange}
+                  />
+                </Form.Item>
+
                 <Input.TextArea
                   rows={3}
                   className="rounded-xl font-bold"
@@ -475,7 +522,7 @@ export default function BookingPage() {
                     setCustomerInfo({ ...customerInfo, note: e.target.value })
                   }
                 />
-              </Space>
+              </Form>
             </CustomCard>
           </Col>
 

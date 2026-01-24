@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Card,
@@ -14,6 +14,7 @@ import {
   Divider,
   Spin,
   message,
+  Tabs,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -22,7 +23,8 @@ import {
   MailOutlined,
   StarOutlined,
   HistoryOutlined,
-  WalletOutlined,
+  ShoppingCartOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import adminCustomerService, {
@@ -32,30 +34,59 @@ import adminCustomerService, {
 
 const { Title, Text } = Typography;
 
+// 🛑 Định nghĩa Interface thay cho any
+interface CustomerOrder {
+  id: number;
+  order_code: string;
+  total_amount: number;
+  status: string;
+  created_at: string;
+}
+
+// Interface mở rộng cho Response từ API chi tiết
+interface CustomerDetailResponse {
+  success: boolean;
+  data: Customer;
+  bookings: CustomerBooking[];
+  orders: CustomerOrder[]; // Thêm orders vào đây cho sạch any
+}
+
 export default function CustomerDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(true);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [bookings, setBookings] = useState<CustomerBooking[]>([]);
+  const [orders, setOrders] = useState<CustomerOrder[]>([]);
+
+  const fetchData = useCallback(async () => {
+    try {
+      if (!id) return;
+      setLoading(true);
+
+      // Ép kiểu Response về Interface vừa định nghĩa ở trên
+      const res = (await adminCustomerService.getCustomerDetail(
+        id,
+      )) as unknown as CustomerDetailResponse;
+
+      if (res.success) {
+        setCustomer(res.data);
+        setBookings(res.bookings || []);
+        setOrders(res.orders || []);
+      }
+    } catch (error: unknown) {
+      // Xử lý lỗi unknown theo chuẩn TS
+      const errorMsg = error instanceof Error ? error.message : "Lỗi hệ thống";
+      console.error(errorMsg);
+      message.error("Lỗi soi hồ sơ khách hàng rực rỡ!");
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        if (!id) return;
-        const res = await adminCustomerService.getCustomerDetail(id);
-        if (res.success) {
-          setCustomer(res.data);
-          setBookings(res.bookings || []);
-        }
-      } catch (error: unknown) {
-        message.error("Không thể tải thông tin khách hàng");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
-  }, [id]);
+  }, [fetchData]);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat("vi-VN", {
@@ -65,8 +96,11 @@ export default function CustomerDetail() {
 
   if (loading)
     return (
-      <div className="h-screen flex items-center justify-center bg-[#064e3b]">
+      <div className="h-screen flex flex-col items-center justify-center bg-[#064e3b]">
         <Spin size="large" />
+        <div className="mt-4 text-white font-bold italic uppercase tracking-widest">
+          Đang soi hồ sơ cực phẩm...
+        </div>
       </div>
     );
 
@@ -76,27 +110,26 @@ export default function CustomerDetail() {
         <Button
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate(-1)}
-          className="mb-6 rounded-xl font-bold bg-white/10 text-white border-none hover:bg-white/20"
+          className="mb-6 rounded-xl font-black italic bg-white/10 text-white border-none hover:bg-white/20 uppercase"
         >
-          QUAY LẠI DANH SÁCH
+          Quay lại danh sách
         </Button>
 
-        <Row gutter={24}>
-          {/* CỘT TRÁI: PROFILE KHÁCH HÀNG */}
+        <Row gutter={[24, 24]}>
           <Col xs={24} lg={8}>
-            <Card className="rounded-[32px] border-none shadow-2xl text-center p-4">
+            <Card className="rounded-[32px] border-none shadow-2xl text-center p-4 bg-white/95">
               <Avatar
                 size={120}
                 icon={<UserOutlined />}
                 className={
                   customer?.is_vip
-                    ? "bg-amber-500 border-4 border-white shadow-xl"
-                    : "bg-blue-500"
+                    ? "bg-gradient-to-tr from-amber-400 to-yellow-600 border-4 border-white shadow-xl"
+                    : "bg-blue-500 shadow-lg"
                 }
               />
               <Title
                 level={3}
-                className="mt-4 mb-0 font-black uppercase italic"
+                className="mt-4 mb-0 font-black uppercase italic text-slate-800"
               >
                 {customer?.name}{" "}
                 {customer?.is_vip && (
@@ -104,106 +137,218 @@ export default function CustomerDetail() {
                 )}
               </Title>
               <Tag
-                color={customer?.status === "active" ? "green" : "default"}
-                className="rounded-full px-4 mt-2 font-bold"
+                color={customer?.status === "active" ? "green" : "volcano"}
+                className="rounded-full px-4 mt-2 font-black border-none shadow-sm"
               >
-                {customer?.status === "active" ? "ĐANG HOẠT ĐỘNG" : "TẠM KHÓA"}
+                {customer?.status === "active" ? "HOẠT ĐỘNG" : "TẠM KHÓA"}
               </Tag>
 
               <Divider className="my-6" />
 
-              <div className="text-left space-y-4">
-                <Space>
-                  <PhoneOutlined className="text-blue-500" />{" "}
-                  <Text font-bold>{customer?.phone || "Chưa cập nhật"}</Text>
+              <div className="text-left space-y-5 px-4">
+                <Space align="center" size="middle">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shadow-sm">
+                    <PhoneOutlined className="text-blue-500" />
+                  </div>
+                  <Text className="font-bold text-slate-700 text-base">
+                    {customer?.phone || "---"}
+                  </Text>
                 </Space>
                 <br />
-                <Space>
-                  <MailOutlined className="text-blue-500" />{" "}
-                  <Text font-bold>{customer?.email}</Text>
+                <Space align="center" size="middle">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shadow-sm">
+                    <MailOutlined className="text-emerald-500" />
+                  </div>
+                  <Text className="font-bold text-slate-700 text-base">
+                    {customer?.email || "---"}
+                  </Text>
+                </Space>
+                <br />
+                <Space align="center" size="middle">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shadow-sm">
+                    <CalendarOutlined className="text-amber-500" />
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-gray-400 font-bold uppercase">
+                      Ngày gia nhập
+                    </div>
+                    <Text className="font-bold text-slate-600">
+                      {customer
+                        ? dayjs(customer.created_at).format("DD/MM/YYYY")
+                        : "---"}
+                    </Text>
+                  </div>
                 </Space>
               </div>
 
               <div className="mt-8 grid grid-cols-2 gap-4">
                 <Card
                   size="small"
-                  className="bg-blue-50 border-none rounded-2xl"
+                  className="bg-blue-50 border-none rounded-2xl shadow-inner"
                 >
                   <Statistic
                     title={
-                      <span className="text-[10px] font-bold">TỔNG ĐẶT</span>
+                      <span className="text-[10px] font-black text-blue-800 uppercase">
+                        Tổng lượt đặt
+                      </span>
                     }
                     value={customer?.total_bookings}
-                    valueStyle={{ fontWeight: 900, color: "#1d4ed8" }}
+                    styles={{ content: { fontWeight: 900, color: "#1d4ed8" } }}
                   />
                 </Card>
                 <Card
                   size="small"
-                  className="bg-emerald-50 border-none rounded-2xl"
+                  className="bg-emerald-50 border-none rounded-2xl shadow-inner"
                 >
                   <Statistic
                     title={
-                      <span className="text-[10px] font-bold">CHI TIÊU</span>
+                      <span className="text-[10px] font-black text-emerald-800 uppercase">
+                        Tổng chi tiêu
+                      </span>
                     }
                     value={customer?.total_spent}
-                    precision={0}
-                    suffix="đ"
-                    valueStyle={{
-                      fontWeight: 900,
-                      color: "#059669",
-                      fontSize: "14px",
-                    }}
+                    formatter={(val) => (
+                      <span className="text-[14px] font-black">
+                        {formatCurrency(Number(val))}
+                      </span>
+                    )}
+                    styles={{ content: { color: "#059669" } }}
                   />
                 </Card>
               </div>
             </Card>
           </Col>
 
-          {/* CỘT PHẢI: LỊCH SỬ GIAO DỊCH */}
           <Col xs={24} lg={16}>
-            <Card
-              title={
-                <Space>
-                  <HistoryOutlined />{" "}
-                  <span className="font-black uppercase italic">
-                    Lịch sử đặt sân
-                  </span>
-                </Space>
-              }
-              className="rounded-[32px] border-none shadow-2xl"
-            >
-              <Table
-                dataSource={bookings}
-                rowKey="id"
-                pagination={{ pageSize: 5 }}
-                columns={[
+            <Card className="rounded-[32px] border-none shadow-2xl bg-white/95 overflow-hidden min-h-[600px]">
+              <Tabs
+                defaultActiveKey="1"
+                className="custom-detail-tabs px-6 py-4"
+                items={[
                   {
-                    title: "MÃ ĐƠN",
-                    dataIndex: "booking_code",
-                    render: (text) => <b className="text-blue-600">#{text}</b>,
-                  },
-                  {
-                    title: "NGÀY ĐẶT",
-                    dataIndex: "check_in_date",
-                    render: (date) => dayjs(date).format("DD/MM/YYYY"),
-                  },
-                  {
-                    title: "SỐ TIỀN",
-                    dataIndex: "total_price",
-                    render: (price) => (
-                      <span className="font-bold">{formatCurrency(price)}</span>
+                    key: "1",
+                    label: (
+                      <span className="font-black italic uppercase text-[12px] flex items-center gap-2">
+                        <HistoryOutlined /> Lịch sử đặt sân
+                      </span>
+                    ),
+                    children: (
+                      <Table
+                        dataSource={bookings}
+                        rowKey="id"
+                        pagination={{ pageSize: 6 }}
+                        className="custom-table-bold"
+                        columns={[
+                          {
+                            title: "MÃ ĐƠN",
+                            dataIndex: "booking_code",
+                            render: (text: string) => (
+                              <Text className="font-black text-blue-600">
+                                #{text}
+                              </Text>
+                            ),
+                          },
+                          {
+                            title: "NGÀY ĐÁ",
+                            dataIndex: "booking_date",
+                            render: (date: string) => (
+                              <Text className="font-bold">
+                                {dayjs(date).format("DD/MM/YYYY")}
+                              </Text>
+                            ),
+                          },
+                          {
+                            title: "THÀNH TIỀN",
+                            dataIndex: "total_amount",
+                            render: (amount: number) => (
+                              <Text className="font-black text-emerald-600">
+                                {formatCurrency(amount)}
+                              </Text>
+                            ),
+                          },
+                          {
+                            title: "TRẠNG THÁI",
+                            dataIndex: "status",
+                            render: (st: string) => (
+                              <Tag
+                                color={
+                                  st === "completed"
+                                    ? "green"
+                                    : st === "cancelled"
+                                      ? "volcano"
+                                      : "gold"
+                                }
+                                className="rounded-full font-black border-none px-3 shadow-sm text-[10px]"
+                              >
+                                {st?.toUpperCase()}
+                              </Tag>
+                            ),
+                          },
+                        ]}
+                      />
                     ),
                   },
                   {
-                    title: "TRẠNG THÁI",
-                    dataIndex: "status",
-                    render: (st) => (
-                      <Tag
-                        color={st === "completed" ? "green" : "orange"}
-                        className="rounded-full font-bold"
-                      >
-                        {st === "completed" ? "THÀNH CÔNG" : "CHỜ DUYỆT"}
-                      </Tag>
+                    key: "2",
+                    label: (
+                      <span className="font-black italic uppercase text-[12px] flex items-center gap-2">
+                        <ShoppingCartOutlined /> Đơn hàng dịch vụ
+                      </span>
+                    ),
+                    children: (
+                      <Table
+                        dataSource={orders}
+                        rowKey="id"
+                        pagination={{ pageSize: 6 }}
+                        className="custom-table-bold"
+                        columns={[
+                          {
+                            title: "MÃ ORD",
+                            dataIndex: "order_code",
+                            render: (text: string) => (
+                              <Text className="font-black text-orange-600">
+                                {text}
+                              </Text>
+                            ),
+                          },
+                          {
+                            title: "NGÀY MUA",
+                            dataIndex: "created_at",
+                            render: (date: string) => (
+                              <Text className="font-bold">
+                                {dayjs(date).format("DD/MM/YYYY HH:mm")}
+                              </Text>
+                            ),
+                          },
+                          {
+                            title: "TỔNG TIỀN",
+                            dataIndex: "total_amount",
+                            render: (amount: number) => (
+                              <Text className="font-black text-red-500">
+                                {formatCurrency(amount)}
+                              </Text>
+                            ),
+                          },
+                          {
+                            title: "TRẠNG THÁI",
+                            dataIndex: "status",
+                            render: (st: string) => (
+                              <Tag
+                                color={
+                                  st === "completed"
+                                    ? "green"
+                                    : st === "cancelled"
+                                      ? "volcano"
+                                      : "gold"
+                                }
+                                className="rounded-full font-black border-none px-3 text-[10px]"
+                              >
+                                {st?.toUpperCase()}
+                              </Tag>
+                            ),
+                          },
+                        ]}
+                      />
                     ),
                   },
                 ]}
@@ -212,6 +357,15 @@ export default function CustomerDetail() {
           </Col>
         </Row>
       </div>
+
+      <style>{`
+        .custom-detail-tabs .ant-tabs-tab { padding: 12px 0 !important; }
+        .custom-detail-tabs .ant-tabs-tab-btn { color: #94a3b8 !important; font-weight: 700; }
+        .custom-detail-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: #065f46 !important; font-size: 14px; }
+        .custom-detail-tabs .ant-tabs-ink-bar { background: #065f46 !important; height: 4px !important; border-radius: 4px; }
+        .custom-table-bold .ant-table-thead > tr > th { background: #f8fafb !important; font-weight: 900 !important; font-style: italic !important; text-transform: uppercase !important; font-size: 11px !important; color: #64748b !important; }
+        .custom-table-bold .ant-table-row:hover > td { background-color: #fafffd !important; }
+      `}</style>
     </div>
   );
 }

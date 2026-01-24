@@ -9,7 +9,6 @@ const { Text } = Typography;
 interface ProductCardProps {
   product: Product;
   onAddToCart?: (product: Product) => void;
-  // BỔ SUNG: Prop để xử lý logic Mua ngay từ trang danh sách
   onBuyNow?: (product: Product) => void;
 }
 
@@ -21,7 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const navigate = useNavigate();
   const STORAGE_URL = "http://127.0.0.1:8000/storage/";
 
-  const getCategoryLabel = (category: string) => {
+  const getCategoryLabel = (category: string): string => {
     const labels: Record<string, string> = {
       food: "Đồ ăn",
       drink: "Đồ uống",
@@ -31,7 +30,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     return labels[category] || category;
   };
 
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (category: string): string => {
     const colors: Record<string, string> = {
       food: "orange",
       drink: "blue",
@@ -47,7 +46,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
       className="h-full border-border shadow-sm hover:shadow-md transition-all rounded-xl overflow-hidden"
       cover={
         <div
-          className="relative aspect-square bg-gray-50 flex items-center justify-center overflow-hidden cursor-pointer p-4"
+          className="relative h-56 bg-white flex items-center justify-center overflow-hidden cursor-pointer"
           onClick={() => navigate(`/products/${product.id}`)}
         >
           <img
@@ -57,11 +56,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 ? product.image
                 : `${STORAGE_URL}${product.image?.replace(/^\//, "")}`
             }
-            className="max-w-full max-h-full object-contain transition-transform duration-500 hover:scale-105"
+            /**
+             * 🛑 CHỖ THAY ĐỔI CHIẾN THUẬT:
+             * - w-full: Ép ảnh giãn hết 100% chiều ngang của khung (hết khoảng trắng bên phải).
+             * - object-contain: Đảm bảo toàn bộ nội dung ảnh vẫn hiển thị đủ, không bị cắt khúc.
+             */
+            className="w-full h-full object-contain transition-transform duration-500 hover:scale-110"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                "https://placehold.co/600x400?text=⚽+Sản+Phẩm";
+            }}
           />
           <Tag
             color={getCategoryColor(product.category)}
-            className="absolute top-3 left-3 rounded-full px-3 font-bold uppercase italic border-none shadow-sm"
+            className="absolute top-3 left-3 rounded-full px-3 font-black uppercase italic border-none shadow-md"
           >
             {getCategoryLabel(product.category)}
           </Tag>
@@ -107,7 +115,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </Tag>
         </div>
 
-        {/* CHỖ THAY ĐỔI: Chia làm 2 nút bấm rực rỡ nằm song song */}
         <div className="flex gap-2">
           <Button
             type="default"
@@ -123,7 +130,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             type="primary"
             icon={<ThunderboltOutlined />}
             className="flex-1 bg-orange-500 border-none font-bold italic uppercase h-10 rounded-lg shadow-sm hover:bg-orange-600"
-            onClick={() => onBuyNow?.(product)} // Gọi hàm Mua ngay truyền từ Products.tsx
+            onClick={() => onBuyNow?.(product)}
             disabled={product.stock === 0}
           >
             Mua ngay
@@ -133,3 +140,5 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     </Card>
   );
 };
+
+export default ProductCard;

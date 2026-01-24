@@ -1,5 +1,6 @@
 import api from "../api";
 
+// 1. Định nghĩa Interface Booking chuẩn (Khớp với Model & Protected Casts)
 export interface Booking {
   id: number;
   user_id: number;
@@ -9,23 +10,39 @@ export interface Booking {
   end_time: string;
   duration: number;
   total_amount: number;
-  status: "pending" | "confirmed" | "playing" | "completed" | "cancelled";
+  status:
+    | "pending"
+    | "confirmed"
+    | "playing"
+    | "completed"
+    | "cancelled"
+    | "approved"
+    | "rejected";
   customer_name: string;
   customer_phone: string;
   notes?: string;
-  field?: { name: string };
+  field?: {
+    id: number;
+    name: string;
+    price: number;
+  };
+  user?: {
+    id: number;
+    name: string;
+    profile?: {
+      phone?: string;
+    };
+  };
   created_at: string;
   updated_at: string;
 }
 
-// Định nghĩa kiểu dữ liệu cho hàm tạo mới
-export interface CreateBookingData {
-  field_id: number;
-  start_time: string; // Định dạng: YYYY-MM-DD HH:mm:ss
-  end_time: string; // Định dạng: YYYY-MM-DD HH:mm:ss
-  customer_name: string;
-  customer_phone: string;
-  notes?: string;
+// 2. Interface cho phản hồi API chung
+export interface ApiResponse<T> {
+  success: boolean;
+  status?: string;
+  message?: string;
+  data: T;
 }
 
 export interface BookingFilters {
@@ -34,77 +51,147 @@ export interface BookingFilters {
 }
 
 const adminBookingService = {
-  // 1. Lấy danh sách booking
-  getBookings: async (filters?: BookingFilters) => {
-    const response = await api.get("/bookings", { params: filters });
-    return response.data;
-  },
-
-  // 2. Lấy chi tiết booking
-  getBookingById: async (id: number | string) => {
-    console.log(`[Service] Đang gọi API lấy chi tiết Booking ID: ${id}`);
+  // 1. Lấy danh sách booking (Phân trang của Laravel trả về cấu trúc lồng)
+  getBookings: async (
+    filters?: BookingFilters,
+  ): Promise<ApiResponse<{ data: Booking[]; total: number }>> => {
+    console.log(
+      "[Service] >>> Đang lấy danh sách Booking với bộ lọc:",
+      filters,
+    );
     try {
-      const response = await api.get(`/bookings/${id}`);
-      console.log("[Service] Dữ liệu Booking nhận được:", response.data);
+      const response = await api.get<
+        ApiResponse<{ data: Booking[]; total: number }>
+      >("/bookings", { params: filters });
+      console.log("[Service] <<< Danh sách nhận về:", response.data);
       return response.data;
-    } catch (error) {
-      console.error("[Service] Lỗi khi gọi API getBookingById:", error);
+    } catch (error: unknown) {
+      console.error("[Service] ❌ Lỗi getBookings:", error);
       throw error;
     }
   },
 
-  // 3. Tạo đơn đặt sân mới (Hàm bạn đang cần)
-  createBooking: async (data: CreateBookingData) => {
-    const response = await api.post("/bookings", data);
-    return response.data; // Trả về { success: true, message: "...", data: { ... } }
+  // 2. Lấy chi tiết booking (Model Binding)
+  getBookingById: async (
+    id: number | string,
+  ): Promise<ApiResponse<Booking>> => {
+    console.log(`[Service] >>> Truy vấn chi tiết Booking ID: ${id}`);
+    try {
+      const response = await api.get<ApiResponse<Booking>>(`/bookings/${id}`);
+      console.log("[Service] <<< Dữ liệu chi tiết:", response.data);
+
+      // LOG KIỂM TRA QUAN HỆ: Nếu field null là do Backend chưa load()
+      if (response.data.data && !response.data.data.field) {
+        console.warn(
+          `[Service] ⚠️ Cảnh báo: Booking #${id} bị thiếu quan hệ 'field'.`,
+        );
+      }
+
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[Service] ❌ Lỗi getBookingById (${id}):`, error);
+      throw error;
+    }
   },
 
-  // 4. Cập nhật trạng thái (Xác nhận, Bắt đầu, Hoàn thành, Hủy)
-  updateBooking: async (id: number | string, data: any) => {
-    console.log(`[Service] Đang gửi yêu cầu cập nhật ID: ${id}`, data);
+  // 3. Tạo đơn đặt sân mới
+  createBooking: async (
+    data: Partial<Booking>,
+  ): Promise<ApiResponse<Booking>> => {
+    console.log("[Service] >>> Tạo Booking mới:", data);
     try {
-      const response = await api.put(`/bookings/${id}`, data);
-      console.log("[Service] Kết quả cập nhật:", response.data);
+      const response = await api.post<ApiResponse<Booking>>("/bookings", data);
+      console.log("[Service] <<< Kết quả tạo mới:", response.data);
       return response.data;
-    } catch (error) {
-      console.error("[Service] Lỗi khi gọi API updateBooking:", error);
+    } catch (error: unknown) {
+      console.error("[Service] ❌ Lỗi tạo đặt sân:", error);
+      throw error;
+    }
+  },
+
+  // 4. Cập nhật thông tin booking (PUT)
+  updateBooking: async (
+    id: number | string,
+    data: Partial<Booking>,
+  ): Promise<ApiResponse<Booking>> => {
+    console.log(
+      `[Service] >>> Cập nhật Booking ID: ${id}. Data gửi lên:`,
+      data,
+    );
+    try {
+      const response = await api.put<ApiResponse<Booking>>(
+        `/bookings/${id}`,
+        data,
+      );
+      console.log("[Service] <<< Kết quả cập nhật (PUT):", response.data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[Service] ❌ Lỗi updateBooking (${id}):`, error);
       throw error;
     }
   },
 
   // 5. Lấy lịch trống của sân
-  getSchedule: async (fieldId: number | string, date: string) => {
-    const response = await api.get(`/fields/${fieldId}/schedule`, {
-      params: { date },
-    });
-    return response.data;
-  },
-
-  // 6
-  // Hàm cập nhật trạng thái nhanh (Sử dụng PATCH để tối ưu)
-  updateStatus: async (id: number | string, status: string) => {
-    // API backend của bro có thể là PATCH /bookings/{id}/status
-    // Hoặc nếu bro dùng hàm update tổng quát thì là PUT /bookings/{id}
-    const response = await api.patch(`/bookings/${id}/status`, { status });
-    return response.data;
-  },
-
-  // Hàm lấy danh sách kèm phân trang
-  // getBookings: async (params?: any) => {
-  //   const response = await api.get("/bookings", { params });
-  //   return response.data;
-  // },
-
-  // 7. Xóa đơn đặt sân
-  deleteBooking: async (id: number | string) => {
-    console.log(`[Service] Đang gọi API xóa Booking ID: ${id}`);
+  getSchedule: async (
+    fieldId: number | string,
+    date: string,
+  ): Promise<ApiResponse<any[]>> => {
+    console.log(`[Service] >>> Lấy lịch sân ID: ${fieldId}, ngày: ${date}`);
     try {
-      const response = await api.delete(`/bookings/${id}`);
-      return response.data; // Trả về { success: true, message: "..." }
-    } catch (error) {
-      console.error("[Service] Lỗi khi gọi API deleteBooking:", error);
+      const response = await api.get<ApiResponse<any[]>>(
+        `/fields/${fieldId}/schedule`,
+        { params: { date } },
+      );
+      console.log("[Service] <<< Lịch trống:", response.data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Service] ❌ Lỗi getSchedule:", error);
       throw error;
     }
+  },
+
+  // 6. Cập nhật trạng thái nhanh (PATCH)
+  updateStatus: async (
+    id: number | string,
+    status: string,
+  ): Promise<ApiResponse<Booking>> => {
+    console.log(`[Service] >>> Đổi trạng thái ID: ${id} sang: ${status}`);
+    try {
+      const response = await api.patch<ApiResponse<Booking>>(
+        `/bookings/${id}/status`,
+        { status },
+      );
+      console.log("[Service] <<< Kết quả đổi trạng thái:", response.data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[Service] ❌ Lỗi updateStatus (${id}):`, error);
+      throw error;
+    }
+  },
+
+  // 7. Xóa đơn đặt sân
+  deleteBooking: async (id: number | string): Promise<ApiResponse<null>> => {
+    console.log(`[Service] >>> Yêu cầu xóa Booking ID: ${id}`);
+    try {
+      const response = await api.delete<ApiResponse<null>>(`/bookings/${id}`);
+      console.log("[Service] <<< Kết quả xóa:", response.data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error(`[Service] ❌ Lỗi deleteBooking (${id}):`, error);
+      throw error;
+    }
+  },
+
+  // Trong adminBookingService.ts
+  cancelMyBooking: async (
+    id: number | string,
+  ): Promise<ApiResponse<Booking>> => {
+    console.log(`[Service] >>> Khách hàng yêu cầu hủy đơn ID: ${id}`);
+    // Gọi đúng cái route mới mình vừa tạo ở Bước 1
+    const response = await api.patch<ApiResponse<Booking>>(
+      `/bookings/${id}/cancel-my-booking`,
+    );
+    return response.data;
   },
 };
 

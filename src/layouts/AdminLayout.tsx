@@ -132,6 +132,11 @@ export default function AdminLayout() {
       icon: <UserOutlined />,
       label: "Quản lý khách hàng",
     },
+    {
+      key: "/admin/orders",
+      icon: <UserOutlined />,
+      label: "Quản lý Đơn hàng",
+    },
     { key: "/admin/user", icon: <UserOutlined />, label: "Quản lý tài khoản" },
     { key: "d1", type: "divider" },
     {

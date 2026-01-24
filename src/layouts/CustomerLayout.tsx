@@ -154,6 +154,14 @@ export default function CustomerLayout() {
                         ),
                         onClick: () => navigate("/orders"),
                       },
+                      {
+                        key: "booking",
+                        label: "lịch sử đặt sân ",
+                        icon: (
+                          <ShoppingCart className="w-4 h-4 text-emerald-500" />
+                        ),
+                        onClick: () => navigate("/pitch-bookings"),
+                      },
                       { type: "divider" },
                       {
                         key: "logout",

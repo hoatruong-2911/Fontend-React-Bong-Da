@@ -71,6 +71,41 @@ const Checkout: React.FC = () => {
     { title: "Hoàn tất", icon: <CheckCircleOutlined /> },
   ];
 
+  // 🚀 TỰ ĐỘNG LẤY THÔNG TIN TÀI KHOẢN ĐANG ĐĂNG NHẬP
+  // 🚀 TỰ ĐỘNG LẤY THÔNG TIN TÀI KHOẢN ĐANG ĐĂNG NHẬP
+  // 🚀 TỰ ĐỘNG LẤY THÔNG TIN TÀI KHOẢN ĐANG ĐĂNG NHẬP
+  useEffect(() => {
+    const savedUser = localStorage.getItem("user");
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+
+        // 🛑 BÍ KÍP "QUÉT MẠNG NHỆN": Thử mọi trường hợp SĐT có thể tồn tại
+        const phoneNumber =
+          user.phone ||
+          user.customer_phone ||
+          user.phone_number ||
+          user.profile?.phone || // Kiểm tra trong object profile lồng nhau
+          user.profile?.phone_number ||
+          "";
+
+        const initialInfo = {
+          customerName: user.name || user.profile?.full_name || "",
+          phone: phoneNumber,
+          email: user.email || "",
+        };
+
+        // Điền dữ liệu vào Form Ant Design
+        form.setFieldsValue(initialInfo);
+
+        // Đồng bộ vào state để dùng cho bước thanh toán
+        setOrderInfoState((prev) => ({ ...prev, ...initialInfo }));
+      } catch (e) {
+        console.error("Lỗi parse thông tin user:", e);
+      }
+    }
+  }, [form]);
+
   useEffect(() => {
     if (!orderId) {
       const newId = `ORD${Math.floor(100000 + Math.random() * 900000)}`;
@@ -94,14 +129,13 @@ const Checkout: React.FC = () => {
 
   const subtotal = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
-    0
+    0,
   );
   const total = subtotal + subtotal * 0.02;
 
-  // 🛑 HÀM LƯU ĐƠN CHÍNH THỨC VÀO DB (CHỈ GỌI KHI ĐÃ CÓ TIỀN)
   const saveOrderToDatabase = async (
     info: OrderInfo,
-    method: "qr" | "cash"
+    method: "qr" | "cash",
   ) => {
     try {
       const orderData: StoreOrderData = {
@@ -118,82 +152,62 @@ const Checkout: React.FC = () => {
           price: item.price,
           quantity: item.quantity,
           unit: item.unit,
+          image: item.image,
         })),
       };
 
       await checkoutService.storeOrder(orderData);
 
-      // Xóa giỏ hàng
       const state = location.state as { buyNowItem?: CartItem } | null;
       if (!state?.buyNowItem) {
         localStorage.removeItem("cart");
         window.dispatchEvent(new Event("storage"));
       }
-
-      setCurrentStep(2); // Sang trang Hoàn tất
+      setCurrentStep(2);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };
       message.error(
-        "Lưu đơn lỗi: " + (err.response?.data?.message || "Thử lại sau!")
+        "Lưu đơn lỗi: " + (err.response?.data?.message || "Thử lại sau!"),
       );
     }
   };
 
-  // 🛑 LOGIC POLLING: HỎI BACKEND XEM CÓ TIỀN CHƯA
-  // 🛑 LOGIC POLLING: HỎI BACKEND XEM CÓ TIỀN CHƯA QUA SERVICE
   useEffect(() => {
-    // Chỉ chạy Polling khi đang ở bước Thanh toán, chọn QR và đã có thông tin khách hàng
     if (currentStep === 1 && paymentMethod === "qr" && orderInfoState) {
       pollingRef.current = setInterval(async () => {
         try {
-          // Sử dụng service thay vì gọi axios trực tiếp
-          // Truyền thêm tổng tiền để Backend check chính xác số dư
           const response = await checkoutService.checkPaymentStatus(
             orderId,
-            total
+            total,
           );
-
-          // Kiểm tra dữ liệu trả về từ service
           if (response.data && response.data.status === "paid") {
-            // 1. Dừng việc hỏi thăm Backend ngay lập tức
             if (pollingRef.current) {
               clearInterval(pollingRef.current);
-              pollingRef.current = null; // Gán null để chắc chắn không chạy lại
+              pollingRef.current = null;
             }
-
-            // 2. Gọi hàm lưu đơn hàng chính thức vào Database
             await saveOrderToDatabase(orderInfoState, "qr");
-
-            message.success(
-              "Hệ thống đã nhận được tiền, đang khởi tạo cực phẩm!"
-            );
+            message.success("Hệ thống nhận tiền thành công!");
           }
         } catch (error: unknown) {
-          // Log lỗi nhẹ nhàng để không làm phiền trải nghiệm người dùng
           console.warn("Đang đợi tiền về túi rực rỡ... ⚽");
         }
-      }, 3000); // 3 giây hỏi 1 lần là con số rực rỡ nhất
+      }, 3000);
     }
-
-    // Cleanup function: Dọn dẹp bộ nhớ khi component bị hủy hoặc chuyển step
     return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
+      if (pollingRef.current) clearInterval(pollingRef.current);
     };
   }, [currentStep, paymentMethod, orderId, orderInfoState, total]);
 
   const handleInfoSubmit = (values: OrderInfo) => {
     setOrderInfoState(values);
-    setCurrentStep(1); // Sang bước QR ngay, chưa lưu DB
+    setCurrentStep(1);
     message.success("Mời bro quét mã thanh toán!");
   };
 
   const handleManualConfirmCash = async () => {
     if (!orderInfoState) return;
     setIsProcessing(true);
-    await saveOrderToDatabase(orderInfoState, "cash"); // Tiền mặt thì lưu luôn
+    await saveOrderToDatabase(orderInfoState, "cash");
     setIsProcessing(false);
   };
 
@@ -207,10 +221,9 @@ const Checkout: React.FC = () => {
   }-${
     BANK_CONFIG.TEMPLATE
   }.png?amount=${total}&addInfo=${orderId}%20THANH%20TOAN&accountName=${encodeURIComponent(
-    BANK_CONFIG.ACCOUNT_NAME
+    BANK_CONFIG.ACCOUNT_NAME,
   )}`;
 
-  // --- PHẦN RENDER TÓM TẮT ĐƠN HÀNG ---
   const renderOrderSummary = () => (
     <Card className="sticky top-4 shadow-xl border-none rounded-[32px] overflow-hidden bg-white p-6">
       <Title
@@ -361,17 +374,28 @@ const Checkout: React.FC = () => {
                   <UserOutlined className="text-blue-500 mr-2" /> Thông tin
                   khách hàng
                 </Title>
-                <Form form={form} layout="vertical" onFinish={handleInfoSubmit}>
+                <Form
+                  form={form}
+                  layout="vertical"
+                  onFinish={handleInfoSubmit}
+                  scrollToFirstError
+                >
                   <Row gutter={16}>
                     <Col span={12}>
                       <Form.Item
                         name="customerName"
                         label={
                           <span className="font-black uppercase italic text-[10px] text-gray-400">
-                            Họ tên
+                            Họ tên *
                           </span>
                         }
-                        rules={[{ required: true }]}
+                        rules={[
+                          {
+                            required: true,
+                            message: "Bro quên nhập tên rồi kìa!",
+                          },
+                          { min: 2, message: "Tên gì mà ngắn vậy bro?" },
+                        ]}
                       >
                         <Input
                           placeholder="Tên của bạn"
@@ -384,14 +408,29 @@ const Checkout: React.FC = () => {
                         name="phone"
                         label={
                           <span className="font-black uppercase italic text-[10px] text-gray-400">
-                            SĐT
+                            SĐT *
                           </span>
                         }
-                        rules={[{ required: true }]}
+                        rules={[
+                          {
+                            required: true,
+                            message: "Cho xin cái số điện thoại đi bro!",
+                          },
+                          {
+                            pattern: /^(0)[0-9]{9}$/,
+                            message:
+                              "SĐT phải đúng 10 số và bắt đầu bằng số 0 nhé!",
+                          },
+                        ]}
                       >
                         <Input
                           placeholder="09xxxxxxx"
                           className="rounded-xl h-12 font-bold"
+                          onChange={(e) => {
+                            form.setFieldsValue({
+                              phone: e.target.value.replace(/[^0-9]/g, ""),
+                            });
+                          }}
                         />
                       </Form.Item>
                     </Col>
@@ -400,12 +439,18 @@ const Checkout: React.FC = () => {
                     name="email"
                     label={
                       <span className="font-black uppercase italic text-[10px] text-gray-400">
-                        Email
+                        Email (Không bắt buộc)
                       </span>
                     }
+                    rules={[
+                      {
+                        type: "email",
+                        message: "Định dạng email có vẻ sai sai rồi bro!",
+                      },
+                    ]}
                   >
                     <Input
-                      placeholder="Email"
+                      placeholder="Email để nhận thông báo (nếu có)"
                       className="rounded-xl h-12 font-bold"
                     />
                   </Form.Item>
@@ -419,7 +464,7 @@ const Checkout: React.FC = () => {
                   >
                     <TextArea
                       rows={3}
-                      placeholder="Ghi chú thêm..."
+                      placeholder="Ghi chú thêm (ví dụ: giao giờ hành chính...)"
                       className="rounded-xl font-bold"
                     />
                   </Form.Item>
@@ -428,7 +473,7 @@ const Checkout: React.FC = () => {
                     htmlType="submit"
                     size="large"
                     block
-                    className="h-16 rounded-[24px] bg-emerald-600 font-black italic uppercase"
+                    className="h-16 rounded-[24px] bg-emerald-600 font-black italic uppercase shadow-lg hover:scale-[1.02] transition-transform"
                   >
                     Tiếp tục thanh toán
                   </Button>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Card,
@@ -26,6 +26,7 @@ import {
   TeamOutlined,
   DeleteOutlined,
   StarOutlined,
+  ShoppingCartOutlined,
 } from "@ant-design/icons";
 import adminCustomerService, {
   Customer,
@@ -40,7 +41,8 @@ export default function CustomersManagement() {
   const [searchText, setSearchText] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
-  const fetchCustomers = async () => {
+  // 🛑 TỐI ƯU GỌI API: Dùng useCallback để tránh re-render vô tận
+  const fetchCustomers = useCallback(async () => {
     try {
       setLoading(true);
       const res = await adminCustomerService.getCustomers({
@@ -52,15 +54,15 @@ export default function CustomersManagement() {
         setStats(res.stats);
       }
     } catch (error: unknown) {
-      message.error("Lỗi tải danh sách khách hàng");
+      message.error("Lỗi tải danh sách khách hàng rực rỡ");
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchText, statusFilter]);
 
   useEffect(() => {
     fetchCustomers();
-  }, [statusFilter]);
+  }, [fetchCustomers]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -104,12 +106,14 @@ export default function CustomersManagement() {
     },
     {
       title: (
-        <span className="font-black text-[11px] uppercase">Số lần đặt</span>
+        <span className="font-black text-[11px] uppercase text-center">
+          Lượt đặt
+        </span>
       ),
       dataIndex: "total_bookings",
       align: "center",
       render: (val: number) => (
-        <Tag color="blue" className="font-black border-none rounded-lg">
+        <Tag color="blue" className="font-black border-none rounded-lg px-3">
           {val}
         </Tag>
       ),
@@ -121,7 +125,7 @@ export default function CustomersManagement() {
       dataIndex: "total_spent",
       render: (value: number) => (
         <span className="font-black text-emerald-600 italic">
-          {formatCurrency(value)}
+          {formatCurrency(Number(value))}
         </span>
       ),
     },
@@ -131,7 +135,9 @@ export default function CustomersManagement() {
       ),
       dataIndex: "last_booking",
       render: (date: string | null) => (
-        <span className="font-bold text-gray-500">{date || "---"}</span>
+        <span className="font-bold text-gray-500">
+          {date ? new Date(date).toLocaleDateString("vi-VN") : "---"}
+        </span>
       ),
     },
     {
@@ -141,8 +147,8 @@ export default function CustomersManagement() {
       dataIndex: "status",
       render: (s: Customer["status"]) => (
         <Tag
-          color={s === "active" ? "green" : "default"}
-          className="rounded-full font-black px-3 border-none shadow-sm"
+          color={s === "active" ? "green" : "volcano"}
+          className="rounded-full font-black px-3 border-none shadow-sm text-[10px]"
         >
           {s === "active" ? "HOẠT ĐỘNG" : "TẠM KHÓA"}
         </Tag>
@@ -173,17 +179,70 @@ export default function CustomersManagement() {
           >
             GỬI MAIL
           </Button>
+          {/* // Tìm đến nút Delete trong columns Table */}
           <Popconfirm
             title="Xóa khách hàng này?"
-            description="Dữ liệu liên quan sẽ bị ảnh hưởng!"
+            description="Mọi dữ liệu liên quan sẽ biến mất vĩnh viễn!"
             onConfirm={async () => {
-              await adminCustomerService.deleteCustomer(record.id);
-              message.success("Đã xóa khách hàng rực rỡ!");
-              fetchCustomers();
+              try {
+                const res = await adminCustomerService.deleteCustomer(
+                  record.id,
+                );
+                if (res.success) {
+                  message.success("Đã xóa khách hàng rực rỡ!");
+                  fetchCustomers();
+                }
+              } catch (error: unknown) {
+                // 🛑 KHÔNG DÙNG ANY: Ép kiểu error về AxiosError với cấu trúc data tùy chỉnh
+                const axiosError = error as {
+                  response?: {
+                    status: number;
+                    data: {
+                      message: string;
+                      debug_info?: {
+                        orders: Array<{ order_code: string; status: string }>;
+                        bookings: Array<{
+                          booking_date: string;
+                          status: string;
+                        }>;
+                      };
+                    };
+                  };
+                };
+
+                const response = axiosError.response;
+
+                if (response && response.status === 422) {
+                  const debugData = response.data.debug_info;
+
+                  console.log(
+                    "%c--- DỮ LIỆU THAM CHIẾU CÒN SÓT ---",
+                    "color: red; font-weight: bold; font-size: 14px;",
+                  );
+
+                  if (debugData) {
+                    if (debugData.orders.length > 0) {
+                      console.table(debugData.orders);
+                    } else {
+                      console.log("Không còn đơn hàng nào.");
+                    }
+
+                    if (debugData.bookings.length > 0) {
+                      console.table(debugData.bookings);
+                    } else {
+                      console.log("Không còn lịch đặt sân nào.");
+                    }
+                  }
+
+                  message.error(response.data.message);
+                } else {
+                  message.error("Lỗi hệ thống khi xóa!");
+                }
+              }
             }}
-            okText="Xóa"
-            cancelText="Hủy"
-            okButtonProps={{ danger: true }}
+            okText="Xóa luôn"
+            cancelText="Thôi"
+            okButtonProps={{ danger: true, className: "font-bold" }}
           >
             <Button
               danger
@@ -198,8 +257,8 @@ export default function CustomersManagement() {
   ];
 
   return (
-    <div className="p-8 bg-[#064e3b] min-h-screen space-y-6 text-white">
-      {/* 4 Thẻ Stats */}
+    <div className="p-8 bg-[#064e3b] min-h-screen space-y-6">
+      {/* 🛑 4 THẺ THỐNG KÊ (Sửa lỗi styles content thay cho valueStyle) */}
       <Row gutter={[16, 16]}>
         {[
           {
@@ -221,10 +280,10 @@ export default function CustomersManagement() {
             icon: <StarOutlined />,
           },
           {
-            title: "TỔNG BOOKING",
+            title: "TỔNG LƯỢT ĐẶT",
             value: stats?.totalBookings,
-            color: "#1890ff",
-            icon: <TeamOutlined />,
+            color: "#eb2f96",
+            icon: <ShoppingCartOutlined />,
           },
         ].map((item, idx) => (
           <Col xs={24} sm={6} key={idx}>
@@ -240,7 +299,7 @@ export default function CustomersManagement() {
                   </span>
                 }
                 value={item.value || 0}
-                valueStyle={{ color: item.color, fontWeight: 900 }}
+                styles={{ content: { color: item.color, fontWeight: 900 } }}
                 prefix={item.icon}
               />
             </Card>
@@ -248,7 +307,8 @@ export default function CustomersManagement() {
         ))}
       </Row>
 
-      <Card className="rounded-[32px] border-none shadow-2xl bg-white/95 overflow-hidden text-gray-800">
+      {/* 🛑 BẢNG DỮ LIỆU CHÍNH */}
+      <Card className="rounded-[32px] border-none shadow-2xl bg-white/95 overflow-hidden">
         <div className="p-6 flex flex-wrap justify-between items-center gap-4 border-b border-gray-100">
           <Space wrap size="middle">
             <Input
@@ -262,7 +322,7 @@ export default function CustomersManagement() {
             <Select
               value={statusFilter}
               onChange={setStatusFilter}
-              className="w-44 h-10 font-black italic shadow-sm"
+              className="w-44 h-10 font-black italic shadow-sm custom-select-bold"
             >
               <Select.Option value="all">TẤT CẢ TRẠNG THÁI</Select.Option>
               <Select.Option value="active">ĐANG HOẠT ĐỘNG</Select.Option>
@@ -271,9 +331,9 @@ export default function CustomersManagement() {
             <Button
               type="primary"
               onClick={fetchCustomers}
-              className="h-10 rounded-xl bg-blue-700 font-black italic uppercase shadow-md border-none px-8"
+              className="h-10 rounded-xl bg-blue-700 font-black italic uppercase shadow-md border-none px-8 hover:!bg-blue-800"
             >
-              LỌC
+              LỌC DỮ LIỆU
             </Button>
           </Space>
           <Button
@@ -289,10 +349,20 @@ export default function CustomersManagement() {
           dataSource={customers}
           columns={columns}
           rowKey="id"
-          pagination={{ pageSize: 10, className: "p-4 font-bold" }}
+          pagination={{
+            pageSize: 8,
+            className: "p-4 font-black italic",
+            showTotal: (total) => `Tổng cộng ${total} khách hàng rực rỡ`,
+          }}
           className="custom-table-bold"
         />
       </Card>
+
+      <style>{`
+        .custom-table-bold .ant-table-thead > tr > th { background: #f0fdf4 !important; font-weight: 900 !important; font-style: italic !important; text-transform: uppercase !important; font-size: 11px !important; color: #065f46 !important; border-bottom: 2px solid #d1fae5 !important; }
+        .custom-table-bold .ant-table-row:hover > td { background-color: #fafffd !important; }
+        .custom-select-bold .ant-select-selection-item { font-weight: 900 !important; font-style: italic !important; text-transform: uppercase !important; font-size: 12px !important; }
+      `}</style>
     </div>
   );
 }

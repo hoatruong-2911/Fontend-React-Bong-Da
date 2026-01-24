@@ -86,6 +86,10 @@ import AttendanceEdit from "./pages/admin/attendance/AttendanceEdit";
 import AdminCustomers from "./pages/admin/customers/index";
 import CustomerDetail from "./pages/admin/customers/CustomerDetail";
 
+// quản lý giỏ hàng 
+import OrderManagement from "./pages/admin/order/OrderAdmin";
+import EditOrder from "./pages/admin/order/EditOrder";
+
 //-------
 //----------------------
 
@@ -117,9 +121,14 @@ import Booking from "./pages/customer/Booking";
 // giỏ hàng đặt hàng
 import Cart from "./pages/customer/Cart";
 
-// lịch sử 
+// lịch sử
 import CustomerOrders from "./pages/customer/orders/index";
 import OrdersDetail from "./pages/customer/orders/OrderDetail";
+
+// lịch sử đặt sân
+import PitchBookingHistory from "./pages/customer/booking/PitchBookingHistory";
+import PitchBookingDetail from "./pages/customer/booking/PitchBookingDetail";
+
 // thanh toán
 import Checkout from "./pages/customer/Checkout";
 
@@ -130,6 +139,7 @@ import AboutUs from "./pages/customer/AboutUs";
 import CustomerProfile from "./pages/customer/profile/index";
 
 import NotFound from "./pages/NotFound";
+import { Order } from "./services/customer";
 
 const queryClient = new QueryClient();
 
@@ -198,6 +208,10 @@ const App = () => (
                 <Route path="/admin/staff/add" element={<StaffAdd />} />
                 <Route path="/admin/staff/edit/:id" element={<StaffEdit />} />
                 <Route path="/admin/staff/:id" element={<StaffDetail />} />
+                {/* quản lý đơn hàng */}
+                <Route path="/admin/orders" element={<OrderManagement />} />
+                <Route path="/admin/orders/edit/:id" element={<EditOrder />} />
+
                 {/* quản lý ca làm  */}
                 <Route path="/admin/shifts" element={<AdminShifts />} />
                 <Route path="/admin/shifts/add" element={<ShiftAdd />} />
@@ -261,6 +275,8 @@ const App = () => (
                   element={<CategoryDetail />}
                 />
               </Route>
+              
+
             </Route>
 
             {/* --- STAFF ONLY ROUTES --- */}
@@ -286,7 +302,6 @@ const App = () => (
               <Route path="/fields/:id" element={<FieldDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/aboutus" element={<AboutUs />} />
-              
 
               {/* NHÓM 2: TRANG RIÊNG TƯ - BẮT BUỘC ĐĂNG NHẬP */}
               <Route
@@ -302,7 +317,14 @@ const App = () => (
                 <Route path="/orders" element={<CustomerOrders />} />
                 <Route path="/orders/:orderCode" element={<OrdersDetail />} />
 
-
+                <Route
+                  path="/pitch-bookings"
+                  element={<PitchBookingHistory />}
+                />
+                <Route
+                  path="/pitch-bookings/:id"
+                  element={<PitchBookingDetail />}
+                />
               </Route>
             </Route>
             {/* CATCH-ALL ROUTE */}

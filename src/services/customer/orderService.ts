@@ -5,6 +5,7 @@ export interface OrderItemDetail {
   id: number;
   product_id: number;
   product_name: string;
+  image?: string;
   quantity: number;
   price: string | number;
   unit?: string;
@@ -43,6 +44,7 @@ export interface StoreOrderData {
   items: {
     id: number | string;
     name: string;
+    image?: string;
     price: number;
     quantity: number;
     unit?: string;
@@ -58,7 +60,7 @@ const orderService = {
 
   getOrderDetail: async (orderCode: string) => {
     const response = await api.get<OrderResponse<OrderRecord>>(
-      `/orders/${orderCode}`
+      `/orders/${orderCode}`,
     );
     return response.data;
   },
@@ -66,7 +68,7 @@ const orderService = {
   checkPaymentStatus: async (orderCode: string, totalAmount: number) => {
     const response = await api.get<{ order_code: string; status: string }>(
       `/orders/check-status/${orderCode}`,
-      { params: { total_amount: totalAmount } }
+      { params: { total_amount: totalAmount } },
     );
     return response.data;
   },
@@ -74,9 +76,14 @@ const orderService = {
   storeOrder: async (orderData: StoreOrderData) => {
     const response = await api.post<OrderResponse<OrderRecord>>(
       "/orders",
-      orderData
+      orderData,
     );
     return response.data;
+  },
+
+  updateOrderStatus: (id: number, status: string) => {
+    // Lưu ý: Route này phải được khai báo trong nhóm customer ở api.php
+    return api.put(`/orders/${id}/status`, { status });
   },
 };
 
