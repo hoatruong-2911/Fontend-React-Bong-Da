@@ -16,11 +16,10 @@ import {
   TimePicker,
   Typography,
   Form,
+  Badge,
 } from "antd";
 import {
-  EnvironmentOutlined,
   ClockCircleOutlined,
-  CheckOutlined,
   UserOutlined,
   PhoneOutlined,
   LeftOutlined,
@@ -34,17 +33,25 @@ import customerFieldService, { Field } from "@/services/customer/fieldService";
 import customerBookingService, {
   CreateBookingData,
 } from "@/services/customer/bookingService";
+
 dayjs.locale("vi");
 const { Option } = Select;
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
-// --- INTERFACES ---
-interface TimeSlot {
-  start_time: string;
-  end_time: string;
-  price: number;
-  status: "available" | "booked";
-}
+// --- CẤU HÌNH KHUNG GIỜ ĐỒNG BỘ VỚI STAFF ---
+const TIME_SLOTS = [
+  "06:00",
+  "07:30",
+  "09:00",
+  "10:30",
+  "13:00",
+  "14:30",
+  "16:00",
+  "17:30",
+  "19:00",
+  "20:30",
+  "22:00",
+];
 
 interface CustomerInfo {
   name: string;
@@ -59,7 +66,6 @@ interface CustomCardProps {
   children: React.ReactNode;
 }
 
-// Giao diện Card chuẩn Admin rực rỡ
 const CustomCard = ({
   title,
   step,
@@ -103,18 +109,16 @@ export default function BookingPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const fieldIdFromUrl = searchParams.get("fieldId");
-  const [form] = Form.useForm(); // Khai báo form để validate báo đỏ
+  const [form] = Form.useForm();
 
-  // --- STATES ---
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState<Dayjs | null>(dayjs());
   const [currentField, setCurrentField] = useState<Field | null>(null);
   const [allFields, setAllFields] = useState<Field[]>([]);
   const [loading, setLoading] = useState(true);
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]); // Danh sách đơn chiếm dụng thực tế
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
-  // Logic chọn giờ chuẩn Admin
   const [isManualTime, setIsManualTime] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [manualTime, setManualTime] = useState({
@@ -128,7 +132,7 @@ export default function BookingPage() {
     note: "",
   });
 
-  // 1. Tải danh sách sân (Khách hàng)
+  // 1. Tải danh sách sân
   useEffect(() => {
     const initData = async () => {
       try {
@@ -148,20 +152,21 @@ export default function BookingPage() {
     initData();
   }, [fieldIdFromUrl]);
 
-  // 2. Tải lịch sân (Khách hàng)
-  const fetchSchedule = useCallback(
+  // 2. Tải lịch bận thực tế của 1 sân (FIELD SPECIFIC)
+  const fetchFieldSchedule = useCallback(
     async (fieldId: number, selectedDate: Dayjs) => {
       try {
         setScheduleLoading(true);
         const dateStr = selectedDate.format("YYYY-MM-DD");
-        const response = await customerFieldService.getSchedule(
+        // Gọi hàm getFieldSchedule mới ở Backend
+        const response = await customerBookingService.getFieldSchedule(
           fieldId,
           dateStr,
         );
         const data = response.data?.data || response.data || [];
-        setTimeSlots(data);
+        setBookings(data);
       } catch (error) {
-        console.error("Lỗi tải lịch sân.");
+        console.error("Lỗi tải lịch bận của sân.");
       } finally {
         setScheduleLoading(false);
       }
@@ -170,11 +175,60 @@ export default function BookingPage() {
   );
 
   useEffect(() => {
-    if (currentField && date && !isManualTime)
-      fetchSchedule(currentField.id, date);
-  }, [currentField?.id, date, fetchSchedule, isManualTime]);
+    if (currentField && date) fetchFieldSchedule(currentField.id, date);
+  }, [currentField, date, fetchFieldSchedule]);
 
-  // --- LOGIC TÍNH TOÁN TIỀN CHUẨN ADMIN ---
+  // ✅ HÀM TÍNH TRẠNG THÁI Ô GIỜ CHI TIẾT
+  const getSlotStatus = (slotStart: string) => {
+    const slotDateTime = dayjs(`${date?.format("YYYY-MM-DD")} ${slotStart}`);
+
+    // 1. Kiểm tra HẾT HẠN (Quá khứ)
+    if (slotDateTime.isBefore(dayjs().add(5, "minute"))) {
+      return {
+        type: "expired",
+        label: "HẾT HẠN",
+        color: "#d9d9d9",
+        disabled: true,
+      };
+    }
+
+    const [slotH, slotM] = slotStart.split(":").map(Number);
+    const slotTotalMinutes = slotH * 60 + slotM;
+
+    // 2. Kiểm tra CHẾM CHỖ (Dùng logic Overlap như bên Staff)
+    const booking = bookings.find((b: any) => {
+      const [startH, startM] = b.start_time.split(":").map(Number);
+      const [endH, endM] = b.end_time.split(":").map(Number);
+      const startTotal = startH * 60 + startM;
+      const endTotal = endH * 60 + endM;
+      return slotTotalMinutes >= startTotal && slotTotalMinutes < endTotal;
+    });
+
+    if (booking) {
+      if (booking.status === "playing")
+        return {
+          type: "playing",
+          label: "ĐANG ĐÁ",
+          color: "#ef4444",
+          disabled: true,
+        };
+      return {
+        type: "booked",
+        label: "ĐÃ ĐẶT",
+        color: "#f59e0b",
+        disabled: true,
+      };
+    }
+
+    return {
+      type: "available",
+      label: "SẴN SÀNG",
+      color: "#10b981",
+      disabled: false,
+    };
+  };
+
+  // --- LOGIC TÍNH TOÁN TIỀN (GIỮ NGUYÊN) ---
   const pricing = useMemo(() => {
     let durationInHours = 0;
     let startTimeStr = "";
@@ -187,20 +241,18 @@ export default function BookingPage() {
       startTimeStr = manualTime.start;
       endTimeStr = manualTime.end;
     } else {
-      const slot = timeSlots.find((t) => t.start_time === selectedTime);
-      if (slot) {
-        durationInHours = 1.5; // Ca mặc định 90 phút
-        startTimeStr = slot.start_time;
-        endTimeStr = slot.end_time;
+      if (selectedTime) {
+        durationInHours = 1.5;
+        startTimeStr = selectedTime;
+        endTimeStr = dayjs(`2000-01-01 ${selectedTime}`)
+          .add(90, "minute")
+          .format("HH:mm");
       }
     }
 
     if (durationInHours <= 0 || !currentField) return null;
-
     const basePricePerHour = currentField.price || 0;
     const subTotal = basePricePerHour * durationInHours;
-
-    // Phụ phí đêm nếu bắt đầu từ 20:00 trở đi (+20%)
     const isNight = parseInt(startTimeStr.split(":")[0]) >= 20;
     const surcharge = isNight ? subTotal * 0.2 : 0;
 
@@ -212,24 +264,21 @@ export default function BookingPage() {
       surcharge,
       finalTotal: subTotal + surcharge,
     };
-  }, [isManualTime, manualTime, selectedTime, timeSlots, currentField]);
+  }, [isManualTime, manualTime, selectedTime, currentField]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, "");
     setCustomerInfo({ ...customerInfo, phone: val });
-    form.setFieldsValue({ phone: val }); // Đồng bộ với Form Antd để validate
+    form.setFieldsValue({ phone: val });
   };
 
   const handleSubmit = async () => {
     try {
-      // Kích hoạt validate của Ant Design
       await form.validateFields();
-
       if (!date || !currentField || !pricing) {
         message.warning("Vui lòng chọn thời gian đặt sân!");
         return;
       }
-
       setIsSubmitting(true);
       const bookingDateStr = date.format("YYYY-MM-DD");
       const bookingData: CreateBookingData = {
@@ -240,14 +289,12 @@ export default function BookingPage() {
         customer_phone: customerInfo.phone,
         notes: customerInfo.note,
       };
-
       await customerBookingService.createBooking(bookingData);
       message.success("Đặt sân thành công rực rỡ!");
       navigate("/fields");
     } catch (error: any) {
-      if (error.errorFields) return; // Nếu lỗi validate form thì dừng
-      const err = error as { response?: { data?: { message?: string } } };
-      message.error(err.response?.data?.message || "Lỗi khi lưu dữ liệu.");
+      if (error.errorFields) return;
+      message.error(error.response?.data?.message || "Lỗi khi lưu dữ liệu.");
     } finally {
       setIsSubmitting(false);
     }
@@ -321,88 +368,105 @@ export default function BookingPage() {
             <CustomCard
               title="Chọn giờ"
               step={2}
-              description="Chọn theo ca cố định hoặc thời gian tự do"
+              description="Xem trạng thái sân thực tế"
             >
-              <div className="flex items-center gap-3 mb-6 bg-white p-3 rounded-lg border border-gray-100 w-fit shadow-sm">
-                <span
-                  className={`text-sm ${
-                    !isManualTime ? "font-bold text-green-600" : "text-gray-400"
-                  }`}
-                >
-                  Theo ca (90')
-                </span>
-                <Switch
-                  checked={isManualTime}
-                  onChange={(val) => {
-                    setIsManualTime(val);
-                    setSelectedTime(null);
-                  }}
-                />
-                <span
-                  className={`text-sm ${
-                    isManualTime ? "font-bold text-green-600" : "text-gray-400"
-                  }`}
-                >
-                  Tự chọn giờ
-                </span>
+              <div className="flex flex-wrap items-center gap-4 mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-sm ${!isManualTime ? "font-bold text-green-600" : "text-gray-400"}`}
+                  >
+                    Theo ca (90')
+                  </span>
+                  <Switch
+                    checked={isManualTime}
+                    onChange={(val) => {
+                      setIsManualTime(val);
+                      setSelectedTime(null);
+                    }}
+                  />
+                  <span
+                    className={`text-sm ${isManualTime ? "font-bold text-green-600" : "text-gray-400"}`}
+                  >
+                    Tự chọn giờ
+                  </span>
+                </div>
+                <Divider type="vertical" />
+                <Space size="middle">
+                  <Badge
+                    color="#10b981"
+                    text={
+                      <span className="text-[10px] font-bold uppercase italic">
+                        Sẵn sàng
+                      </span>
+                    }
+                  />
+                  <Badge
+                    color="#f59e0b"
+                    text={
+                      <span className="text-[10px] font-bold uppercase italic">
+                        Đã đặt
+                      </span>
+                    }
+                  />
+                  <Badge
+                    color="#ef4444"
+                    text={
+                      <span className="text-[10px] font-bold uppercase italic">
+                        Đang đá
+                      </span>
+                    }
+                  />
+                  <Badge
+                    color="#d9d9d9"
+                    text={
+                      <span className="text-[10px] font-bold uppercase italic">
+                        Hết hạn
+                      </span>
+                    }
+                  />
+                </Space>
               </div>
 
               {!isManualTime ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {timeSlots.map((slot) => {
-                    const slotStart = dayjs(
-                      `${date?.format("YYYY-MM-DD")} ${slot.start_time}`,
-                    );
-
-                    // 1. Kiểm tra giờ quá khứ (Cho phép trễ 5p tránh lag)
-                    const isPast =
-                      date?.isSame(dayjs(), "day") &&
-                      slotStart.isBefore(dayjs().add(5, "minute"));
-
-                    // 2. Ép kiểu về string để so sánh an toàn tuyệt đối
-                    const isBooked = String(slot.status).trim() === "booked";
-
-                    // 🛑 BIẾN QUYẾT ĐỊNH: Nếu trùng lịch hoặc hết giờ đều khóa
-                    const isDisabled = isBooked || isPast;
-
-                    return (
-                      <div
-                        key={slot.start_time}
-                        onClick={() =>
-                          !isDisabled && setSelectedTime(slot.start_time)
-                        } // Không cho click nếu disabled
-                        className={`relative p-4 border-2 rounded-xl transition-all text-center
-        ${
-          isDisabled
-            ? "bg-gray-100 border-gray-200 cursor-not-allowed opacity-60"
-            : "bg-white hover:border-green-400 cursor-pointer shadow-sm"
-        }
-        ${selectedTime === slot.start_time && !isDisabled ? "border-green-500 bg-green-50" : "border-gray-100"}`}
-                      >
-                        <ClockCircleOutlined
-                          className={
-                            isDisabled ? "text-gray-400" : "text-green-500"
+                <Spin spinning={scheduleLoading}>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {TIME_SLOTS.map((slot) => {
+                      const status = getSlotStatus(slot);
+                      const isSelected = selectedTime === slot;
+                      return (
+                        <div
+                          key={slot}
+                          onClick={() =>
+                            !status.disabled && setSelectedTime(slot)
                           }
-                        />
-                        <div
-                          className={`font-bold mt-1 italic uppercase text-xs ${isDisabled ? "text-gray-400" : "text-gray-800"}`}
+                          className={`relative p-4 border-2 rounded-xl transition-all text-center cursor-pointer
+                            ${status.disabled ? "bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed" : "bg-white hover:border-green-400 shadow-sm"}
+                            ${isSelected && !status.disabled ? "border-green-500 bg-green-50" : "border-gray-100"}
+                          `}
                         >
-                          {slot.start_time} - {slot.end_time}
+                          <ClockCircleOutlined
+                            className={
+                              status.disabled
+                                ? "text-gray-300"
+                                : "text-green-500"
+                            }
+                          />
+                          <div
+                            className={`font-bold mt-1 text-xs ${status.disabled ? "text-gray-400" : "text-gray-800"}`}
+                          >
+                            {slot}
+                          </div>
+                          <div
+                            className="text-[10px] mt-1 font-black italic"
+                            style={{ color: status.color }}
+                          >
+                            {status.label}
+                          </div>
                         </div>
-                        <div
-                          className={`text-xs mt-1 font-black ${isDisabled ? "text-red-400" : "text-green-600"}`}
-                        >
-                          {/* HIỂN THỊ CHỮ THEO ĐÚNG TRẠNG THÁI */}
-                          {isBooked
-                            ? "ĐÃ ĐẶT"
-                            : isPast
-                              ? "HẾT GIỜ"
-                              : `${slot.price.toLocaleString()}đ`}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </Spin>
               ) : (
                 <div className="bg-white p-6 rounded-xl border border-gray-100 shadow-sm">
                   <Row gutter={24}>
@@ -416,31 +480,26 @@ export default function BookingPage() {
                         size="large"
                         className="w-full h-12 rounded-xl"
                         value={dayjs(manualTime.start, "HH:mm")}
-                        // Khóa giờ trong quá khứ cho TimePicker
                         disabledTime={() => ({
-                          disabledHours: () => {
-                            if (!date?.isSame(dayjs(), "day")) return [];
-                            return Array.from(
-                              { length: dayjs().hour() },
-                              (_, i) => i,
-                            );
-                          },
-                          disabledMinutes: (selectedHour) => {
-                            if (
-                              !date?.isSame(dayjs(), "day") ||
-                              selectedHour > dayjs().hour()
-                            )
-                              return [];
-                            return Array.from(
-                              { length: dayjs().minute() },
-                              (_, i) => i,
-                            );
-                          },
+                          disabledHours: () =>
+                            date?.isSame(dayjs(), "day")
+                              ? Array.from(
+                                  { length: dayjs().hour() },
+                                  (_, i) => i,
+                                )
+                              : [],
+                          disabledMinutes: (h) =>
+                            date?.isSame(dayjs(), "day") && h === dayjs().hour()
+                              ? Array.from(
+                                  { length: dayjs().minute() },
+                                  (_, i) => i,
+                                )
+                              : [],
                         })}
                         onChange={(t) =>
                           setManualTime({
                             ...manualTime,
-                            start: t?.format("HH:mm") || "07:00",
+                            start: t?.format("HH:mm") || "17:30",
                           })
                         }
                       />
@@ -455,15 +514,64 @@ export default function BookingPage() {
                         size="large"
                         className="w-full h-12 rounded-xl"
                         value={dayjs(manualTime.end, "HH:mm")}
+                        disabledTime={() => {
+                          const startTime = dayjs(manualTime.start, "HH:mm");
+                          return {
+                            // Vô hiệu hóa các giờ nhỏ hơn giờ bắt đầu
+                            disabledHours: () => {
+                              const hours = [];
+                              for (let i = 0; i < 24; i++) {
+                                // Nếu là ngày hôm nay, chặn các giờ đã qua
+                                if (
+                                  date?.isSame(dayjs(), "day") &&
+                                  i < dayjs().hour()
+                                ) {
+                                  hours.push(i);
+                                }
+                                // Luôn chặn các giờ nhỏ hơn giờ bắt đầu đã chọn
+                                if (i < startTime.hour()) {
+                                  hours.push(i);
+                                }
+                              }
+                              return [...new Set(hours)]; // Loại bỏ trùng lặp
+                            },
+                            // Vô hiệu hóa các phút nhỏ hơn phút bắt đầu nếu cùng giờ
+                            disabledMinutes: (selectedHour) => {
+                              const minutes = [];
+                              if (selectedHour === startTime.hour()) {
+                                for (let i = 0; i <= startTime.minute(); i++) {
+                                  minutes.push(i);
+                                }
+                              }
+                              // Chặn thêm phút của giờ hiện tại nếu là ngày hôm nay
+                              if (
+                                date?.isSame(dayjs(), "day") &&
+                                selectedHour === dayjs().hour()
+                              ) {
+                                for (let i = 0; i < dayjs().minute(); i++) {
+                                  minutes.push(i);
+                                }
+                              }
+                              return [...new Set(minutes)];
+                            },
+                          };
+                        }}
                         onChange={(t) =>
                           setManualTime({
                             ...manualTime,
-                            end: t?.format("HH:mm") || "08:30",
+                            end: t?.format("HH:mm") || "19:00",
                           })
                         }
                       />
                     </Col>
                   </Row>
+                  <Text
+                    type="secondary"
+                    className="text-[10px] mt-2 block italic text-orange-500"
+                  >
+                    * Vui lòng đối chiếu bảng trạng thái phía trên để tránh chọn
+                    trùng giờ đã bận.
+                  </Text>
                 </div>
               )}
             </CustomCard>
@@ -473,8 +581,7 @@ export default function BookingPage() {
               step={3}
               description="Để chúng tôi xác nhận đặt sân"
             >
-              {/* Sử dụng Form Ant Design để validate báo đỏ rực rỡ */}
-              <Form form={form} layout="vertical" initialValues={customerInfo}>
+              <Form form={form} layout="vertical">
                 <Form.Item
                   name="name"
                   rules={[
@@ -491,7 +598,6 @@ export default function BookingPage() {
                     }
                   />
                 </Form.Item>
-
                 <Form.Item
                   name="phone"
                   rules={[
@@ -512,7 +618,6 @@ export default function BookingPage() {
                     onChange={handlePhoneChange}
                   />
                 </Form.Item>
-
                 <Input.TextArea
                   rows={3}
                   className="rounded-xl font-bold"
@@ -559,9 +664,7 @@ export default function BookingPage() {
                       : "--:--"}
                   </span>
                 </div>
-
                 <Divider className="my-2 border-dashed" />
-
                 {pricing && (
                   <div className="bg-emerald-50 p-4 rounded-xl text-xs space-y-2 border border-emerald-100 shadow-inner">
                     <div className="flex justify-between">
@@ -582,7 +685,6 @@ export default function BookingPage() {
                     )}
                   </div>
                 )}
-
                 <div className="flex justify-between items-center pt-2">
                   <span className="font-black italic uppercase text-lg">
                     TỔNG CỘNG
@@ -596,7 +698,6 @@ export default function BookingPage() {
                     </div>
                   </div>
                 </div>
-
                 <Button
                   type="primary"
                   size="large"
@@ -608,9 +709,6 @@ export default function BookingPage() {
                 >
                   XÁC NHẬN ĐẶT SÂN
                 </Button>
-                <div className="text-center text-[10px] text-gray-400 font-black italic uppercase">
-                  🔒 Bảo mật & An toàn 100%
-                </div>
               </div>
             </Card>
           </Col>

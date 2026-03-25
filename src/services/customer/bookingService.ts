@@ -22,13 +22,28 @@ export interface Booking {
   created_at: string;
 }
 
+// Interface cho phản hồi lịch bận của sân
+export interface FieldOccupation {
+  id: number;
+  field_id: number;
+  start_time: string; // HH:mm:ss hoặc YYYY-MM-DD HH:mm:ss tùy DB
+  end_time: string;
+  status: string;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+}
+
 // Customer Booking API
 const customerBookingService = {
   // Tạo booking mới (ĐÃ THÊM LOG CHI TIẾT)
   createBooking: async (data: CreateBookingData) => {
     // --- BƯỚC 1: LOG DỮ LIỆU ĐƯỢC GỬI ĐI ---
     console.log(
-      `[API Booking] Gửi yêu cầu đặt sân cho Field ID: ${data.field_id}`
+      `[API Booking] Gửi yêu cầu đặt sân cho Field ID: ${data.field_id}`,
     );
     console.log(`[API Booking] Payload chi tiết:`, data);
 
@@ -43,11 +58,11 @@ const customerBookingService = {
     } catch (error) {
       // --- BƯỚC 3: LOG PHẢN HỒI LỖI ---
       console.error(
-        `[API Booking] LỖI đặt sân! Status: ${error.response?.status}`
+        `[API Booking] LỖI đặt sân! Status: ${error.response?.status}`,
       );
       console.error(
         `[API Booking] Chi tiết lỗi:`,
-        error.response?.data || error
+        error.response?.data || error,
       );
 
       // Quan trọng: Ném lỗi để component calling (BookingPage) xử lý
@@ -75,6 +90,22 @@ const customerBookingService = {
       params: { date },
     });
     return response.data;
+  },
+
+  getFieldSchedule: async (
+    field_id: number,
+    date: string,
+  ): Promise<ApiResponse<FieldOccupation[]>> => {
+    try {
+      const response = await api.get<ApiResponse<FieldOccupation[]>>(
+        "/bookings/field-schedule",
+        { params: { field_id, date } },
+      );
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Customer Service] ❌ Lỗi lấy lịch sân:", error);
+      throw error;
+    }
   },
 };
 

@@ -49,7 +49,7 @@ const FieldCard: React.FC<FieldCardProps> = ({ field }) => {
               color={field.available ? "green" : "red"}
               className="m-0 border-none font-black italic uppercase rounded-full px-3 py-0.5 shadow-md"
             >
-              {field.available ? "Sẵn sàng" : "Hết lịch"}
+              {field.available ? "Sẵn sàng" : "Sân Đã Kín Lịch"}
             </Tag>
             {field.is_vip && (
               <Tag

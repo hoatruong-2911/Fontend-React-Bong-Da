@@ -29,6 +29,7 @@ import { useNavigate } from "react-router-dom";
 import categoryService, {
   Category,
 } from "../../../services/admin/categoryService";
+import { authService } from "@/services";
 
 const { Title, Text } = Typography;
 
@@ -36,6 +37,10 @@ const CategoryIndex: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  // ✅ 0. LOGIC PHÂN QUYỀN PLATINUM
+  const currentUser = authService.getStoredUser();
+  const isAdmin = currentUser?.role === "admin"; // Check nếu là Admin mới được sửa/xóa
 
   const fetchCategories = async () => {
     setLoading(true);
@@ -79,7 +84,7 @@ const CategoryIndex: React.FC = () => {
   const inactiveCategories = totalCategories - activeCategories;
   const totalProductsCount = categories.reduce(
     (sum, c) => sum + (c.products_count || 0),
-    0
+    0,
   );
 
   // --- UI CUSTOM CARD (GIỐNG BÊN BRAND) ---
@@ -214,10 +219,11 @@ const CategoryIndex: React.FC = () => {
               onClick={() => navigate(`${record.id}`)}
             />
           </Tooltip>
-          <Tooltip title="Sửa">
+          <Tooltip title={isAdmin ? "Sửa" : "Bạn không có quyền sửa"}>
             <Button
               type="primary"
               icon={<EditOutlined />}
+              disabled={!isAdmin}
               size="small"
               className="shadow-sm"
               onClick={() => navigate(`edit/${record.id}`)}
@@ -225,16 +231,20 @@ const CategoryIndex: React.FC = () => {
           </Tooltip>
           <Popconfirm
             title="Xóa danh mục này?"
+            disabled={!isAdmin}
             onConfirm={() => handleDelete(record.id)}
             okText="Xóa"
             cancelText="Hủy"
           >
+            <Tooltip title={isAdmin ? "Xóa" : "Bạn không có quyền xóa"}>
             <Button
               danger
               icon={<DeleteOutlined />}
               size="small"
               className="border-none bg-red-50"
-            />
+              />
+            </Tooltip>
+            
           </Popconfirm>
         </Space>
       ),

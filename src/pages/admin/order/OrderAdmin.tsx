@@ -45,6 +45,8 @@ import adminOrderService, {
 } from "@/services/admin/orderService";
 import { useNavigate } from "react-router-dom";
 
+import { authService } from "@/services";
+
 const { Title, Text } = Typography;
 
 // 🛑 ĐÃ CẬP NHẬT: Thêm trạng thái Confirmed vào Config rực rỡ
@@ -53,8 +55,16 @@ const statusConfig: Record<
   { color: string; text: string; icon: React.ReactNode }
 > = {
   pending: { color: "gold", text: "CHỜ XÁC NHẬN", icon: <SyncOutlined spin /> },
-  confirmed: { color: "cyan", text: "ĐÃ XÁC NHẬN", icon: <CheckCircleOutlined /> },
-  paid: { color: "blue", text: "ĐÃ THANH TOÁN", icon: <DollarCircleOutlined /> },
+  confirmed: {
+    color: "cyan",
+    text: "ĐÃ XÁC NHẬN",
+    icon: <CheckCircleOutlined />,
+  },
+  paid: {
+    color: "blue",
+    text: "ĐÃ THANH TOÁN",
+    icon: <DollarCircleOutlined />,
+  },
   preparing: {
     color: "orange",
     text: "ĐANG CHUẨN BỊ",
@@ -84,6 +94,9 @@ export default function OrderAdmin() {
   );
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  // ✅ 0. LOGIC PHÂN QUYỀN PLATINUM
+  const currentUser = authService.getStoredUser();
+  const isAdmin = currentUser?.role === "admin"; // Check nếu là Admin mới được sửa/xóa
 
   const navigate = useNavigate();
 
@@ -248,17 +261,24 @@ export default function OrderAdmin() {
             />
           </Tooltip>
 
-          <Tooltip title="Chỉnh sửa">
+          <Tooltip
+            title={
+              isAdmin
+                ? "Chỉnh sửa"
+                : "Nhân viên không có quyền sửa nội dung đơn"
+            }
+          >
             <Button
               icon={<EditOutlined />}
               size="small"
               type="primary"
+              disabled={!isAdmin}
               onClick={() => navigate(`/admin/orders/edit/${record.id}`)}
             />
           </Tooltip>
 
           {/* 🛑 LUỒNG LOGIC MỚI: THEO QUY TRÌNH SHOPEE SÂN BÓNG */}
-          
+
           {/* Bước 1: CHỜ XÁC NHẬN -> Bấm Xác nhận đơn */}
           {record.status === "pending" && (
             <Button
@@ -324,15 +344,23 @@ export default function OrderAdmin() {
               />
             </Popconfirm>
           )}
-
-          <Popconfirm
-            title="Xóa vĩnh viễn đơn này?"
-            onConfirm={() =>
-              adminOrderService.deleteOrder(record.id).then(() => loadOrders())
+          <Tooltip
+            title={
+              isAdmin ? "Xóa vĩnh viễn" : "Nhân viên không có quyền xóa dữ liệu"
             }
           >
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+            <Popconfirm
+              title="Xóa vĩnh viễn đơn này?"
+              disabled={!isAdmin}
+              onConfirm={() =>
+                adminOrderService
+                  .deleteOrder(record.id)
+                  .then(() => loadOrders())
+              }
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
@@ -533,7 +561,9 @@ export default function OrderAdmin() {
               ))}
             </div>
             <div className="flex justify-end bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-              <span className="font-black italic mr-4 uppercase">Tổng cộng:</span>
+              <span className="font-black italic mr-4 uppercase">
+                Tổng cộng:
+              </span>
               <Text className="text-2xl font-black text-red-500">
                 {formatCurrency(Number(selectedOrder.total_amount))}
               </Text>

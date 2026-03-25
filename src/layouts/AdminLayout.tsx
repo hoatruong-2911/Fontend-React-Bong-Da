@@ -27,9 +27,11 @@ import {
   AppstoreOutlined,
   CopyrightOutlined,
   TagsOutlined,
+  MailOutlined,
 } from "@ant-design/icons";
 import NotificationDropdown from "@/components/notifications/NotificationDropdown";
 import authService from "../services/authService";
+import NotificationBadge from "@/components/staff/NotificationBadge";
 
 const { Header, Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -81,11 +83,7 @@ export default function AdminLayout() {
       icon: <EnvironmentOutlined />,
       label: "Quản lý sân",
     },
-    {
-      key: "/admin/bookings",
-      icon: <CalendarOutlined />,
-      label: "Quản lý đặt sân",
-    },
+
     {
       key: "group-products",
       icon: <ShoppingOutlined />,
@@ -128,14 +126,24 @@ export default function AdminLayout() {
       ],
     },
     {
+      key: "/admin/bookings",
+      icon: <CalendarOutlined />,
+      label: "Quản lý đặt sân",
+    },
+    {
+      key: "/admin/orders",
+      icon: <ShoppingOutlined />,
+      label: "Quản lý Đơn hàng",
+    },
+    {
       key: "/admin/customers",
       icon: <UserOutlined />,
       label: "Quản lý khách hàng",
     },
     {
-      key: "/admin/orders",
-      icon: <UserOutlined />,
-      label: "Quản lý Đơn hàng",
+      key: "/admin/contact",
+      icon: <MailOutlined />,
+      label: "Quản lý liên hệ",
     },
     { key: "/admin/user", icon: <UserOutlined />, label: "Quản lý tài khoản" },
     { key: "d1", type: "divider" },
@@ -144,6 +152,7 @@ export default function AdminLayout() {
       icon: <BarChartOutlined />,
       label: "Báo cáo doanh thu",
     },
+
     { key: "d2", type: "divider" },
     { key: "/admin/settings", icon: <SettingOutlined />, label: "Cài đặt" },
   ];
@@ -220,8 +229,33 @@ export default function AdminLayout() {
             />
           </div>
 
-          <div className="flex items-center gap-6">
+          {/* <div className="flex items-center gap-6">
             <NotificationDropdown />
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: "p",
+                    icon: <UserOutlined />,
+                    label: "Hồ sơ cá nhân",
+                    onClick: () => navigate("/admin/profile"),
+                  },
+                  { key: "sep", type: "divider" },
+                  {
+                    key: "l",
+                    icon: <LogoutOutlined />,
+                    label: "Đăng xuất",
+                    danger: true,
+                    onClick: handleLogout,
+                  },
+                ],
+              }} */}
+          {/* ✅ CỤM BÊN PHẢI: THÔNG BÁO + PROFILE */}
+          <div className="flex items-center gap-6">
+            {/* 1. Dùng chung NotificationBadge Platinum với Staff */}
+            <NotificationBadge />
+
+            {/* 2. Dropdown Profile Admin */}
             <Dropdown
               menu={{
                 items: [

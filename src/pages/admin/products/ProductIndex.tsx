@@ -27,6 +27,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import productService, { Product } from "@/services/admin/productService";
+import { authService } from "@/services";
 
 const { Title, Text } = Typography;
 
@@ -35,6 +36,10 @@ export default function ProductIndex() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const navigate = useNavigate();
+
+  // ✅ 0. LOGIC PHÂN QUYỀN PLATINUM
+  const currentUser = authService.getStoredUser();
+  const isAdmin = currentUser?.role === "admin"; // Check nếu là Admin mới được sửa/xóa
 
   // 1. Hàm lấy danh sách sản phẩm
   const fetchProducts = async () => {
@@ -83,7 +88,7 @@ export default function ProductIndex() {
       lowStock: products.filter((p) => p.stock < 10).length,
       totalValue: products.reduce((sum, p) => sum + p.price * p.stock, 0),
     }),
-    [products]
+    [products],
   );
 
   const columns = [
@@ -168,24 +173,29 @@ export default function ProductIndex() {
               onClick={() => navigate(`${record.id}`)}
             />
           </Tooltip>
-          <Tooltip title="Sửa">
+
+          <Tooltip title={isAdmin ? "Sửa" : "Bạn không có quyền sửa"}>
             <Button
               type="primary"
               icon={<EditOutlined />}
+              disabled={!isAdmin} // Vô hiệu hóa nếu không phải Admin
               size="small"
               className="shadow-sm"
               onClick={() => navigate(`edit/${record.id}`)}
             />
           </Tooltip>
+
           <Popconfirm
             title="Xóa sản phẩm này?"
+            disabled={!isAdmin} // Không cho hiện Popconfirm nếu là Staff
             onConfirm={() => handleDelete(record.id)}
             okText="Xóa"
             cancelText="Hủy"
           >
-            <Tooltip title="Xóa">
+            <Tooltip title={isAdmin ? "Xóa" : "Chỉ Admin mới có quyền xóa"}>
               <Button
                 danger
+                disabled={!isAdmin}
                 icon={<DeleteOutlined />}
                 size="small"
                 className="border-none bg-red-50 text-red-500"
@@ -286,7 +296,7 @@ export default function ProductIndex() {
         <Table
           columns={columns}
           dataSource={products.filter((p) =>
-            p.name.toLowerCase().includes(searchText.toLowerCase())
+            p.name.toLowerCase().includes(searchText.toLowerCase()),
           )}
           rowKey="id"
           loading={loading}

@@ -33,6 +33,8 @@ import adminCustomerService, {
   CustomerStats,
 } from "@/services/admin/customerService";
 
+import { authService } from "@/services";
+
 export default function CustomersManagement() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
@@ -40,7 +42,9 @@ export default function CustomersManagement() {
   const [stats, setStats] = useState<CustomerStats | null>(null);
   const [searchText, setSearchText] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-
+  // ✅ 0. LOGIC PHÂN QUYỀN PLATINUM
+  const currentUser = authService.getStoredUser();
+  const isAdmin = currentUser?.role === "admin"; // Check nếu là Admin mới được sửa/xóa
   // 🛑 TỐI ƯU GỌI API: Dùng useCallback để tránh re-render vô tận
   const fetchCustomers = useCallback(async () => {
     try {
@@ -180,77 +184,80 @@ export default function CustomersManagement() {
             GỬI MAIL
           </Button>
           {/* // Tìm đến nút Delete trong columns Table */}
-          <Popconfirm
-            title="Xóa khách hàng này?"
-            description="Mọi dữ liệu liên quan sẽ biến mất vĩnh viễn!"
-            onConfirm={async () => {
-              try {
-                const res = await adminCustomerService.deleteCustomer(
-                  record.id,
-                );
-                if (res.success) {
-                  message.success("Đã xóa khách hàng rực rỡ!");
-                  fetchCustomers();
-                }
-              } catch (error: unknown) {
-                // 🛑 KHÔNG DÙNG ANY: Ép kiểu error về AxiosError với cấu trúc data tùy chỉnh
-                const axiosError = error as {
-                  response?: {
-                    status: number;
-                    data: {
-                      message: string;
-                      debug_info?: {
-                        orders: Array<{ order_code: string; status: string }>;
-                        bookings: Array<{
-                          booking_date: string;
-                          status: string;
-                        }>;
+          <Tooltip title={isAdmin ? "Xóa" : "Chỉ Admin mới có quyền xóa"}>
+            <Popconfirm
+              title="Xóa khách hàng này?"
+              disabled={!isAdmin}
+              description="Mọi dữ liệu liên quan sẽ biến mất vĩnh viễn!"
+              onConfirm={async () => {
+                try {
+                  const res = await adminCustomerService.deleteCustomer(
+                    record.id,
+                  );
+                  if (res.success) {
+                    message.success("Đã xóa khách hàng rực rỡ!");
+                    fetchCustomers();
+                  }
+                } catch (error: unknown) {
+                  // 🛑 KHÔNG DÙNG ANY: Ép kiểu error về AxiosError với cấu trúc data tùy chỉnh
+                  const axiosError = error as {
+                    response?: {
+                      status: number;
+                      data: {
+                        message: string;
+                        debug_info?: {
+                          orders: Array<{ order_code: string; status: string }>;
+                          bookings: Array<{
+                            booking_date: string;
+                            status: string;
+                          }>;
+                        };
                       };
                     };
                   };
-                };
 
-                const response = axiosError.response;
+                  const response = axiosError.response;
 
-                if (response && response.status === 422) {
-                  const debugData = response.data.debug_info;
+                  if (response && response.status === 422) {
+                    const debugData = response.data.debug_info;
 
-                  console.log(
-                    "%c--- DỮ LIỆU THAM CHIẾU CÒN SÓT ---",
-                    "color: red; font-weight: bold; font-size: 14px;",
-                  );
+                    console.log(
+                      "%c--- DỮ LIỆU THAM CHIẾU CÒN SÓT ---",
+                      "color: red; font-weight: bold; font-size: 14px;",
+                    );
 
-                  if (debugData) {
-                    if (debugData.orders.length > 0) {
-                      console.table(debugData.orders);
-                    } else {
-                      console.log("Không còn đơn hàng nào.");
+                    if (debugData) {
+                      if (debugData.orders.length > 0) {
+                        console.table(debugData.orders);
+                      } else {
+                        console.log("Không còn đơn hàng nào.");
+                      }
+
+                      if (debugData.bookings.length > 0) {
+                        console.table(debugData.bookings);
+                      } else {
+                        console.log("Không còn lịch đặt sân nào.");
+                      }
                     }
 
-                    if (debugData.bookings.length > 0) {
-                      console.table(debugData.bookings);
-                    } else {
-                      console.log("Không còn lịch đặt sân nào.");
-                    }
+                    message.error(response.data.message);
+                  } else {
+                    message.error("Lỗi hệ thống khi xóa!");
                   }
-
-                  message.error(response.data.message);
-                } else {
-                  message.error("Lỗi hệ thống khi xóa!");
                 }
-              }
-            }}
-            okText="Xóa luôn"
-            cancelText="Thôi"
-            okButtonProps={{ danger: true, className: "font-bold" }}
-          >
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              size="small"
-              className="rounded-lg shadow-sm"
-            />
-          </Popconfirm>
+              }}
+              okText="Xóa luôn"
+              cancelText="Thôi"
+              okButtonProps={{ danger: true, className: "font-bold" }}
+            >
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                size="small"
+                className="rounded-lg shadow-sm"
+              />
+            </Popconfirm>
+          </Tooltip>
         </Space>
       ),
     },
