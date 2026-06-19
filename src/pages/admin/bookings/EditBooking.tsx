@@ -14,26 +14,27 @@ import {
   Row,
   Col,
   Divider,
+  Typography,
 } from "antd";
 import {
   ArrowLeftOutlined,
   SaveOutlined,
   UserOutlined,
   PhoneOutlined,
-  SafetyCertificateOutlined,
-  CheckCircleOutlined,
   InfoCircleOutlined,
+  DollarCircleOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 import "dayjs/locale/vi";
 
-// IMPORT SERVICES
+// IMPORT SERVICES ADMIN (Chỉ sử dụng của hệ thống Admin)
 import adminBookingService from "@/services/admin/bookingService";
 import adminFieldService from "@/services/admin/fieldService";
 import { Field } from "@/services/admin/fieldService";
 
 dayjs.locale("vi");
 const { Option } = Select;
+const { Text } = Typography;
 
 const CustomCard = ({ title, step, description, children }: any) => (
   <Card className="shadow-sm mb-6" style={{ borderRadius: 12, border: "none" }}>
@@ -84,10 +85,10 @@ export default function EditBooking() {
 
   const selectedField = useMemo(
     () => fields.find((f) => f.id === watchFieldId),
-    [watchFieldId, fields]
+    [watchFieldId, fields],
   );
 
-  // 1. Tải dữ liệu ban đầu
+  // 1. Tải dữ liệu ban đầu từ Admin Service
   useEffect(() => {
     const initData = async () => {
       try {
@@ -101,7 +102,7 @@ export default function EditBooking() {
           if (res.success) {
             const data = res.data;
 
-            // FIX LỖI INVALID DATE: Kết hợp ngày đặt với giờ bắt đầu/kết thúc
+            // Kết hợp ngày đặt với giờ bắt đầu/kết thúc
             const startDate = dayjs(`${data.booking_date} ${data.start_time}`);
             const endDate = dayjs(`${data.booking_date} ${data.end_time}`);
 
@@ -110,9 +111,10 @@ export default function EditBooking() {
               customer_phone: data.customer_phone,
               field_id: data.field_id,
               booking_date: dayjs(data.booking_date),
-              time_range: [startDate, endDate], // Truyền đối tượng dayjs hợp lệ
+              time_range: [startDate, endDate],
               notes: data.notes,
               status: data.status,
+              payment_status: data.payment_status || "unpaid",
               approved_by: data.approved_by,
               confirmed_by: data.confirmed_by,
             });
@@ -127,7 +129,7 @@ export default function EditBooking() {
     initData();
   }, [id, form]);
 
-  // 2. LOGIC TÍNH TIỀN CHO CỘT TỔNG KẾT (Fix lỗi NaN)
+  // 2. LOGIC TÍNH TIỀN VÀ HẠN MỨC CỌC 30% ĐỒNG BỘ
   const pricing = useMemo(() => {
     if (
       !selectedField ||
@@ -151,33 +153,38 @@ export default function EditBooking() {
     const subTotal = basePrice * durationHours;
     const isNight = start.hour() >= 20;
     const surcharge = isNight ? subTotal * 0.2 : 0;
+    const finalTotal = subTotal + surcharge;
 
     return {
       durationHours,
       subTotal,
       surcharge,
-      finalTotal: subTotal + surcharge,
+      finalTotal,
+      depositRequired: finalTotal * 0.3, // 🚀 Tính cọc 30% đồng bộ hệ thống
     };
   }, [selectedField, watchTimeRange]);
 
   const onFinish = async (values: any) => {
+    if (!pricing) return;
     try {
       setBtnLoading(true);
+      const selectedDateStr = values.booking_date.format("YYYY-MM-DD");
+
       const payload = {
         field_id: values.field_id,
         customer_name: values.customer_name,
         customer_phone: values.customer_phone,
-        // Gửi định dạng Y-m-d H:i:s chuẩn cho Backend
-        start_time: values.time_range[0].format("YYYY-MM-DD HH:mm:ss"),
-        end_time: values.time_range[1].format("YYYY-MM-DD HH:mm:ss"),
+        start_time: `${selectedDateStr} ${values.time_range[0].format("HH:mm")}:00`,
+        end_time: `${selectedDateStr} ${values.time_range[1].format("HH:mm")}:00`,
         notes: values.notes,
         status: values.status,
+        payment_status: values.payment_status, // 🚀 Đẩy trạng thái cọc lựa chọn từ ô Select lên API
         approved_by: values.approved_by || null,
         confirmed_by: values.confirmed_by || null,
       };
 
       await adminBookingService.updateBooking(id!, payload);
-      message.success("Cập nhật thành công!");
+      message.success("Cập nhật và sửa đổi trạng thái cọc thành công rực rỡ!");
       navigate("/admin/bookings");
     } catch (error: any) {
       message.error(error.response?.data?.message || "Cập nhật thất bại.");
@@ -189,12 +196,12 @@ export default function EditBooking() {
   if (loading)
     return (
       <div className="p-20 text-center">
-        <Spin size="large" />
+        <Spin size="large" tip="Đang tải dữ liệu đơn đặt sân..." />
       </div>
     );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-gray-50 min-h-screen animate-in fade-in duration-500">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 flex items-center gap-4">
           <Button
@@ -202,8 +209,8 @@ export default function EditBooking() {
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate(-1)}
           />
-          <h1 className="text-2xl font-bold m-0">
-            Chỉnh sửa lượt đặt sân #{id}
+          <h1 className="text-2xl font-bold m-0 italic uppercase">
+            Chỉnh sửa lượt đặt sân #{id} (Admin)
           </h1>
         </header>
 
@@ -218,26 +225,47 @@ export default function EditBooking() {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item
-                      label="Tên khách hàng"
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Tên khách hàng
+                        </span>
+                      }
                       name="customer_name"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "Nhập tên khách hàng" },
+                      ]}
                     >
-                      <Input size="large" prefix={<UserOutlined />} />
+                      <Input
+                        size="large"
+                        prefix={<UserOutlined className="text-green-500" />}
+                        className="rounded-xl font-bold"
+                      />
                     </Form.Item>
                   </Col>
                   <Col span={12}>
                     <Form.Item
-                      label="Số điện thoại"
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Số điện thoại
+                        </span>
+                      }
                       name="customer_phone"
-                      rules={[{ required: true }]}
+                      rules={[
+                        { required: true, message: "Nhập số điện thoại" },
+                        {
+                          pattern: /^(0)[0-9]{9}$/,
+                          message: "SĐT không hợp lệ, phải gồm 10 số!",
+                        },
+                      ]}
                     >
                       <Input
                         size="large"
-                        prefix={<PhoneOutlined />}
+                        prefix={<PhoneOutlined className="text-green-500" />}
+                        className="rounded-xl font-bold"
                         onChange={(e) =>
                           form.setFieldValue(
                             "customer_phone",
-                            e.target.value.replace(/[^0-9]/g, "")
+                            e.target.value.replace(/[^0-9]/g, ""),
                           )
                         }
                       />
@@ -254,14 +282,18 @@ export default function EditBooking() {
                 <Row gutter={16}>
                   <Col span={12}>
                     <Form.Item
-                      label="Chọn sân"
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Chọn sân
+                        </span>
+                      }
                       name="field_id"
-                      rules={[{ required: true }]}
+                      rules={[{ required: true, message: "Chọn sân bóng" }]}
                     >
-                      <Select size="large">
+                      <Select size="large" className="h-12">
                         {fields.map((f) => (
                           <Option key={f.id} value={f.id}>
-                            {f.name}
+                            {f.name} - {f.location}
                           </Option>
                         ))}
                       </Select>
@@ -269,27 +301,35 @@ export default function EditBooking() {
                   </Col>
                   <Col span={12}>
                     <Form.Item
-                      label="Ngày đặt"
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Ngày đặt
+                        </span>
+                      }
                       name="booking_date"
-                      rules={[{ required: true }]}
+                      rules={[{ required: true, message: "Chọn ngày đá" }]}
                     >
                       <DatePicker
                         size="large"
-                        className="w-full"
+                        className="w-full h-12 rounded-xl font-bold"
                         format="DD/MM/YYYY"
                       />
                     </Form.Item>
                   </Col>
                   <Col span={24}>
                     <Form.Item
-                      label="Khung giờ đá"
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Khung giờ đá
+                        </span>
+                      }
                       name="time_range"
-                      rules={[{ required: true }]}
+                      rules={[{ required: true, message: "Chọn khung giờ" }]}
                     >
                       <TimePicker.RangePicker
                         size="large"
                         format="HH:mm"
-                        className="w-full"
+                        className="w-full h-12 rounded-xl"
                         minuteStep={15}
                       />
                     </Form.Item>
@@ -300,84 +340,170 @@ export default function EditBooking() {
               <CustomCard
                 title="Quản lý hệ thống"
                 step={3}
-                description="Cập nhật trạng thái"
+                description="Cập nhật trạng thái và dòng tiền"
               >
                 <Row gutter={16}>
-                  <Col span={8}>
-                    <Form.Item label="Trạng thái" name="status">
-                      <Select size="large">
-                        <Option value="pending">Chờ xác nhận</Option>
-                        <Option value="confirmed">Đã xác nhận</Option>
-                        <Option value="playing">Đang đá</Option>
-                        <Option value="completed">Hoàn thành</Option>
-                        <Option value="cancelled">Đã hủy</Option>
+                  <Col span={12}>
+                    <Form.Item
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Trạng thái đơn
+                        </span>
+                      }
+                      name="status"
+                    >
+                      <Select size="large" className="h-12">
+                        <Option value="pending">Chờ xác nhận (Pending)</Option>
+                        <Option value="approved">Đã duyệt (Approved)</Option>
+                        <Option value="playing">Đang đá (Playing)</Option>
+                        <Option value="completed">
+                          Hoàn thành (Completed)
+                        </Option>
+                        <Option value="cancelled">Đã hủy (Cancelled)</Option>
+                        <Option value="rejected">Từ chối (Rejected)</Option>
                       </Select>
                     </Form.Item>
                   </Col>
-                  <Col span={8}>
-                    <Form.Item label="Người duyệt (ID)" name="approved_by">
-                      <Input size="large" placeholder="Ví dụ: 1" />
+
+                  {/* 🚀 PHẦN BỔ SUNG: Cho phép Admin tinh chỉnh trạng thái cọc dòng tiền */}
+                  <Col span={12}>
+                    <Form.Item
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Trạng thái tiền cọc
+                        </span>
+                      }
+                      name="payment_status"
+                    >
+                      <Select size="large" className="h-12">
+                        <Option value="unpaid">Chưa đóng cọc (Unpaid)</Option>
+                        <Option value="partial_paid">
+                          Đã cọc 30% (Partial Paid)
+                        </Option>
+                        <Option value="fully_paid">
+                          Đã thanh toán đủ (Fully Paid)
+                        </Option>
+                      </Select>
                     </Form.Item>
                   </Col>
-                  <Col span={8}>
-                    <Form.Item label="Người xác nhận (ID)" name="confirmed_by">
-                      <Input size="large" placeholder="Ví dụ: 2" />
+
+                  <Col span={12}>
+                    <Form.Item
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Người duyệt (ID)
+                        </span>
+                      }
+                      name="approved_by"
+                    >
+                      <Input
+                        size="large"
+                        placeholder="Mã ID nhân viên..."
+                        className="rounded-xl font-bold"
+                      />
+                    </Form.Item>
+                  </Col>
+                  <Col span={12}>
+                    <Form.Item
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Người xác nhận (ID)
+                        </span>
+                      }
+                      name="confirmed_by"
+                    >
+                      <Input
+                        size="large"
+                        placeholder="Mã ID nhân viên..."
+                        className="rounded-xl font-bold"
+                      />
                     </Form.Item>
                   </Col>
                   <Col span={24}>
-                    <Form.Item label="Ghi chú" name="notes">
-                      <Input.TextArea rows={3} />
+                    <Form.Item
+                      label={
+                        <span className="font-bold text-xs uppercase text-slate-500">
+                          Ghi chú điều phối
+                        </span>
+                      }
+                      name="notes"
+                    >
+                      <Input.TextArea
+                        rows={3}
+                        className="rounded-xl font-bold"
+                        placeholder="Ghi chú thêm từ ban quản lý..."
+                      />
                     </Form.Item>
                   </Col>
                 </Row>
               </CustomCard>
             </Col>
 
-            {/* CỘT TỔNG KẾT ĐẶT SÂN */}
+            {/* CỘT TỔNG KẾT ĐẶT SÂN (STICKY RIGHT) */}
             <Col xs={24} lg={8}>
               <Card
-                title={<span className="font-bold">Tổng kết chỉnh sửa</span>}
-                className="sticky top-6 shadow-md border-none"
-                style={{ borderRadius: 12 }}
+                title={
+                  <span className="font-black italic uppercase text-slate-700">
+                    Tổng kết chỉnh sửa
+                  </span>
+                }
+                className="sticky top-24 shadow-md border-none"
+                style={{ borderRadius: 20 }}
               >
                 <div className="space-y-4">
-                  <div className="flex justify-between text-gray-500">
-                    <span>Đơn giá sân:</span>
-                    <span className="font-medium text-gray-800">
+                  <div className="flex justify-between text-gray-500 text-xs">
+                    <span>Đơn giá sân gốc:</span>
+                    <span className="font-black text-gray-800">
                       {selectedField?.price.toLocaleString() || 0}đ/h
                     </span>
                   </div>
-                  <div className="flex justify-between text-gray-500">
-                    <span>Thời lượng:</span>
-                    <span className="font-bold text-blue-600">
+                  <div className="flex justify-between text-gray-500 text-xs italic font-bold">
+                    <span>Thời lượng tính toán:</span>
+                    <span className="text-blue-600">
                       {pricing?.durationHours.toFixed(1) || 0} giờ
                     </span>
                   </div>
-                  <Divider className="my-1" dashed />
+
+                  <Divider className="my-1 border-dashed" />
+
                   {pricing && (
-                    <div className="bg-gray-50 p-3 rounded-lg text-sm space-y-2">
-                      <div className="flex justify-between text-gray-600">
-                        <span>Tiền sân:</span>
-                        <span>{pricing.subTotal.toLocaleString()}đ</span>
+                    <div className="bg-emerald-50 p-4 rounded-xl text-xs space-y-2 border border-emerald-100 shadow-inner">
+                      <div className="flex justify-between text-emerald-700 font-bold italic">
+                        <span>Tiền sân gốc:</span>
+                        <span className="font-black text-slate-900">
+                          {pricing.subTotal.toLocaleString()}đ
+                        </span>
                       </div>
                       {pricing.surcharge > 0 && (
-                        <div className="flex justify-between text-orange-500 font-medium">
+                        <div className="flex justify-between text-orange-500 font-black uppercase italic">
                           <span>
-                            <InfoCircleOutlined /> Phụ phí đêm:
+                            <InfoCircleOutlined /> Phụ phí đêm (+20%):
                           </span>
                           <span>{pricing.surcharge.toLocaleString()}đ</span>
                         </div>
                       )}
+
+                      {/* 🚀 ĐỒNG BỘ GIAO DIỆN HIỂN THỊ HẠN MỨC CỌC 30% GIỐNG CUSTOMER */}
+                      <div className="flex justify-between text-red-500 font-black uppercase italic mt-2 pt-2 border-t border-dashed border-emerald-200/80">
+                        <span>
+                          <DollarCircleOutlined /> Hạn mức cọc (30%):
+                        </span>
+                        <span>{pricing.depositRequired.toLocaleString()}đ</span>
+                      </div>
                     </div>
                   )}
+
                   <div className="flex justify-between items-center pt-2">
-                    <span className="text-lg font-bold">TỔNG CỘNG</span>
+                    <span className="font-black italic uppercase text-sm text-slate-500">
+                      TỔNG CỘNG BILL
+                    </span>
                     <div className="text-right">
-                      <span className="text-2xl font-black text-green-600">
+                      <span className="text-2xl font-black text-green-600 italic tracking-tighter">
                         {pricing?.finalTotal.toLocaleString() || 0}đ
                       </span>
                     </div>
                   </div>
+
                   <Button
                     type="primary"
                     size="large"
@@ -385,13 +511,8 @@ export default function EditBooking() {
                     icon={<SaveOutlined />}
                     htmlType="submit"
                     loading={btnLoading}
-                    style={{
-                      height: 54,
-                      borderRadius: 10,
-                      backgroundColor: "#62B462",
-                      borderColor: "#62B462",
-                      fontWeight: 700,
-                    }}
+                    disabled={!pricing}
+                    className="h-16 rounded-[20px] bg-gradient-to-r from-green-500 to-emerald-600 border-none font-black italic uppercase shadow-xl hover:scale-105 active:scale-95 transition-all"
                   >
                     LƯU THAY ĐỔI
                   </Button>

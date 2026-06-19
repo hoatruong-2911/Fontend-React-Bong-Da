@@ -37,6 +37,17 @@ export interface Booking {
   updated_at: string;
 }
 
+// BỔ SUNG INTERFACE CHO ĐẶT ĐỊNH KỲ
+export interface CreateRecurringBookingData {
+  field_id: number;
+  start_date: string;
+  number_of_months: number;
+  start_time: string;
+  end_time: string;
+  customer_name: string;
+  customer_phone: string;
+  notes?: string;
+}
 // Interface cho khung giờ sân (Sạch Any cho getSchedule)
 export interface TimeSlot {
   start_time: string;
@@ -191,6 +202,19 @@ const staffBookingService = {
       throw error;
     }
   },
+
+  createRecurringBooking: async (
+    data: CreateRecurringBookingData
+  ): Promise<any> => {
+    try {
+      const response = await api.post("/bookings/recurring", data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Staff Service] ❌ Lỗi createRecurringBooking:", error);
+      throw error;
+    }
+  },
+
 };
 
 export default staffBookingService;

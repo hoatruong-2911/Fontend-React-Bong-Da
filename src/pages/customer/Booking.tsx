@@ -17,6 +17,7 @@ import {
   Typography,
   Form,
   Badge,
+  Modal,
 } from "antd";
 import {
   ClockCircleOutlined,
@@ -31,6 +32,7 @@ import "dayjs/locale/vi";
 // IMPORT SERVICES KHÁCH HÀNG
 import customerFieldService, { Field } from "@/services/customer/fieldService";
 import customerBookingService, {
+  CreateRecurringBookingData,
   CreateBookingData,
 } from "@/services/customer/bookingService";
 
@@ -39,19 +41,18 @@ const { Option } = Select;
 const { Text } = Typography;
 
 // --- CẤU HÌNH KHUNG GIỜ ĐỒNG BỘ VỚI STAFF ---
-const TIME_SLOTS = [
-  "06:00",
-  "07:30",
-  "09:00",
-  "10:30",
-  "13:00",
-  "14:30",
-  "16:00",
-  "17:30",
-  "19:00",
-  "20:30",
-  "22:00",
-];
+// Tạo hàm sinh ca linh hoạt mỗi 30 phút để danh sách ca dày đặc hơn
+const generateTimeSlots = (startHour = 4, endHour = 24, stepMinutes = 30) => {
+  const slots: string[] = [];
+  for (let hour = startHour; hour < endHour; hour++) {
+    for (let minute = 0; minute < 60; minute += stepMinutes) {
+      const timeString = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+      slots.push(timeString);
+    }
+  }
+  return slots;
+};
+const TIME_SLOTS = generateTimeSlots();
 
 interface CustomerInfo {
   name: string;
@@ -120,10 +121,32 @@ export default function BookingPage() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
 
   const [isManualTime, setIsManualTime] = useState(false);
+  //  STATE MỚI: Bật/tắt chế độ đặt sân cố định
+  const [isRecurring, setIsRecurring] = useState(false);
+  //  STATE MỚI: Lưu số tháng khách chọn để đặt cố định
+  const [recurringMonths, setRecurringMonths] = useState<number>(1);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [manualTime, setManualTime] = useState({
-    start: "17:30",
-    end: "19:00",
+  //  STATE MỚI: Bật/tắt hộp thoại hiển thị số tài khoản chuyển khoản cọc
+  const [showDepositModal, setShowDepositModal] = useState<boolean>(false);
+  const [modalDetails, setModalDetails] = useState<{
+    groupId: string;
+    deposit: number;
+  } | null>(null);
+
+  // Mặc định lấy giờ hiện tại + 15p, và kết thúc sau đó 1 tiếng
+  const [manualTime, setManualTime] = useState(() => {
+    let start = dayjs().add(15, "minute"); // Lấy giờ VN hiện tại
+    if (start.hour() >= 0 && start.hour() < 4) {
+      start = start.hour(4).minute(0); // Nếu nửa đêm thì gán về 4h sáng
+    }
+    let end = start.add(1, "hour");
+    if (end.date() !== start.date() && (end.hour() > 0 || end.minute() > 0)) {
+      end = start.add(1, "day").hour(0).minute(0); // Nếu trôi qua ngày mới thì ép về 00:00 tối đa
+    }
+    return {
+      start: start.format("HH:mm"),
+      end: end.format("HH:mm"),
+    };
   });
 
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
@@ -194,14 +217,22 @@ export default function BookingPage() {
 
     const [slotH, slotM] = slotStart.split(":").map(Number);
     const slotTotalMinutes = slotH * 60 + slotM;
+    const slotEndMinutes = slotTotalMinutes + 90; // Giả định mỗi ca cố định là 90 phút
 
     // 2. Kiểm tra CHẾM CHỖ (Dùng logic Overlap như bên Staff)
     const booking = bookings.find((b: any) => {
       const [startH, startM] = b.start_time.split(":").map(Number);
       const [endH, endM] = b.end_time.split(":").map(Number);
       const startTotal = startH * 60 + startM;
-      const endTotal = endH * 60 + endM;
-      return slotTotalMinutes >= startTotal && slotTotalMinutes < endTotal;
+
+      let endTotal = endH * 60 + endM;
+      // Xử lý làm tròn nếu CSDL lưu 23:59:59 (khi khách đặt tới 0h00)
+      if (endH === 23 && endM >= 59) {
+        endTotal = 24 * 60;
+      }
+
+      // Công thức chuẩn kiểm tra 2 khoảng thời gian giao nhau: StartA < EndB && EndA > StartB
+      return slotTotalMinutes < endTotal && slotEndMinutes > startTotal;
     });
 
     if (booking) {
@@ -234,9 +265,43 @@ export default function BookingPage() {
     let startTimeStr = "";
     let endTimeStr = "";
 
+    // 1. Nếu là ĐẶT CỐ ĐỊNH (ĐỊNH KỲ)
+    if (isRecurring) {
+      const start = dayjs(manualTime.start, "HH:mm");
+      let end = dayjs(manualTime.end, "HH:mm");
+      if (manualTime.end === "00:00") end = end.add(1, "day");
+
+      durationInHours = end.diff(start, "minute") / 60;
+      startTimeStr = manualTime.start;
+      endTimeStr = manualTime.end;
+
+      const totalSessions = recurringMonths * 4;
+      const basePricePerHour = currentField?.price || 0;
+      const sessionPrice = basePricePerHour * durationInHours;
+      const isNight = parseInt(startTimeStr.split(":")[0]) >= 20;
+      const surchargePerSession = isNight ? sessionPrice * 0.2 : 0;
+      const finalSessionPrice = sessionPrice + surchargePerSession;
+
+      const finalTotal = finalSessionPrice * totalSessions;
+
+      return {
+        durationInHours,
+        startTimeStr,
+        endTimeStr,
+        subTotal: finalTotal,
+        surcharge: 0,
+        finalTotal: finalTotal,
+        depositRequired: finalTotal * 0.3, // 🚀 Cọc 30% định kỳ
+        totalSessions: totalSessions,
+      };
+    }
+
+    // 2. Nếu là ĐẶT LẺ
     if (isManualTime) {
       const start = dayjs(manualTime.start, "HH:mm");
-      const end = dayjs(manualTime.end, "HH:mm");
+      let end = dayjs(manualTime.end, "HH:mm");
+      if (manualTime.end === "00:00") end = end.add(1, "day");
+
       durationInHours = end.diff(start, "minute") / 60;
       startTimeStr = manualTime.start;
       endTimeStr = manualTime.end;
@@ -255,6 +320,7 @@ export default function BookingPage() {
     const subTotal = basePricePerHour * durationInHours;
     const isNight = parseInt(startTimeStr.split(":")[0]) >= 20;
     const surcharge = isNight ? subTotal * 0.2 : 0;
+    const finalTotal = subTotal + surcharge;
 
     return {
       durationInHours,
@@ -262,9 +328,18 @@ export default function BookingPage() {
       endTimeStr,
       subTotal,
       surcharge,
-      finalTotal: subTotal + surcharge,
+      finalTotal,
+      depositRequired: finalTotal * 0.3, // 🚀 SỬA CHỖ NÀY: Đặt lẻ bây giờ cũng bắt cọc 30% nhé bro!
+      totalSessions: 1,
     };
-  }, [isManualTime, manualTime, selectedTime, currentField]);
+  }, [
+    isManualTime,
+    manualTime,
+    selectedTime,
+    currentField,
+    isRecurring,
+    recurringMonths,
+  ]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/[^0-9]/g, "");
@@ -272,28 +347,105 @@ export default function BookingPage() {
     form.setFieldsValue({ phone: val });
   };
 
+  // TÁCH HÀM XỬ LÝ SUBMIT CHO SẠCH SẼ
+  const handleSingleBooking = async (
+    bookingDateStr: string,
+    pricingData: any,
+  ) => {
+    if (!currentField) return;
+    let finalEndTime = `${bookingDateStr} ${pricingData.endTimeStr}:00`;
+    if (pricingData.endTimeStr === "00:00") {
+      finalEndTime = `${bookingDateStr} 23:59:59`;
+    }
+    const bookingData: CreateBookingData = {
+      field_id: currentField.id,
+      start_time: `${bookingDateStr} ${pricingData.startTimeStr}:00`,
+      end_time: finalEndTime,
+      customer_name: customerInfo.name,
+      customer_phone: customerInfo.phone,
+      notes: customerInfo.note,
+    };
+
+    // Gọi API lưu vào DB xong
+    const response = await customerBookingService.createBooking(bookingData);
+
+    // 🚀 SỬA CHỖ NÀY: Đặt lẻ thành công thì nạp mã đơn vào Modal và bật lên!
+    setModalDetails({
+      groupId: response.data?.id || response.id || "LE", // Lấy ID hóa đơn lẻ làm mã nội dung chuyển khoản
+      deposit: pricingData.depositRequired,
+    });
+    setShowDepositModal(true);
+    message.success("Giữ chỗ sân lẻ thành công! Vui lòng chuyển khoản cọc.");
+  };
+
+  const handleRecurringBooking = async (
+    bookingDateStr: string,
+    pricingData: any,
+  ) => {
+    if (!currentField) return;
+    const recurringData: CreateRecurringBookingData = {
+      field_id: currentField.id,
+      start_date: bookingDateStr,
+      number_of_months: recurringMonths,
+      start_time: pricingData.startTimeStr,
+      end_time: pricingData.endTimeStr,
+      customer_name: customerInfo.name,
+      customer_phone: customerInfo.phone,
+      notes: customerInfo.note,
+    };
+    const response =
+      await customerBookingService.createRecurringBooking(recurringData);
+
+    // 🚀 THAY ĐỔI: Không điều hướng đi đâu xa, nạp data vào Modal hiện lên trực tiếp
+    setModalDetails({
+      groupId: response.recurring_group_id || response.data?.recurring_group_id,
+      deposit: pricingData.depositRequired,
+    });
+    setShowDepositModal(true);
+    message.success("Đặt lịch chuỗi định kỳ thành công!");
+  };
+
   const handleSubmit = async () => {
     try {
-      await form.validateFields();
+      // Ép Validate 2 ô Tên & Số điện thoại
+      await form.validateFields(["name", "phone"]);
+
       if (!date || !currentField || !pricing) {
         message.warning("Vui lòng chọn thời gian đặt sân!");
         return;
       }
+      if ((isManualTime || isRecurring) && pricing.durationInHours < 1) {
+        message.warning("Thời gian đặt sân tự chọn phải từ 1 tiếng trở lên!");
+        return;
+      }
+
       setIsSubmitting(true);
       const bookingDateStr = date.format("YYYY-MM-DD");
-      const bookingData: CreateBookingData = {
-        field_id: currentField.id,
-        start_time: `${bookingDateStr} ${pricing.startTimeStr}:00`,
-        end_time: `${bookingDateStr} ${pricing.endTimeStr}:00`,
-        customer_name: customerInfo.name,
-        customer_phone: customerInfo.phone,
-        notes: customerInfo.note,
-      };
-      await customerBookingService.createBooking(bookingData);
-      message.success("Đặt sân thành công rực rỡ!");
-      navigate("/fields");
+
+      if (isRecurring) {
+        await handleRecurringBooking(bookingDateStr, pricing);
+      } else {
+        await handleSingleBooking(bookingDateStr, pricing);
+      }
     } catch (error: any) {
-      if (error.errorFields) return;
+      // 🚀 CHỖ CẢI TIẾN: Bắt lỗi khi người dùng chưa nhập thông tin liên hệ
+      if (error && error.errorFields) {
+        // 1. Bắn thông báo ngay trên cửa sổ window hiển thị rõ ràng trên cùng
+        message.error(
+          "Bro ơi! Vui lòng nhập đầy đủ Họ tên và Số điện thoại ở Bước 3 nhé!",
+        );
+
+        // 2. Tự động cuộn màn hình mượt mà xuống khu vực thông tin liên hệ để khách điền liền
+        const contactSection = document.getElementById("step-contact-info");
+        if (contactSection) {
+          contactSection.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }
+        return;
+      }
+
       message.error(error.response?.data?.message || "Lỗi khi lưu dữ liệu.");
     } finally {
       setIsSubmitting(false);
@@ -370,7 +522,31 @@ export default function BookingPage() {
               step={2}
               description="Xem trạng thái sân thực tế"
             >
+              {/* 🚀 GIAO DIỆN CHỌN CHẾ ĐỘ ĐẶT SÂN */}
               <div className="flex flex-wrap items-center gap-4 mb-6 bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-sm ${!isRecurring ? "font-bold text-green-600" : "text-gray-400"}`}
+                  >
+                    Đặt lẻ (1 buổi)
+                  </span>
+                  <Switch
+                    checked={isRecurring}
+                    onChange={(val) => {
+                      setIsRecurring(val);
+                      // Khi bật đặt cố định, tự động bật "Tự chọn giờ"
+                      if (val) setIsManualTime(true);
+                      setSelectedTime(null);
+                    }}
+                  />
+                  <span
+                    className={`text-sm ${isRecurring ? "font-bold text-green-600" : "text-gray-400"}`}
+                  >
+                    Đặt cố định (Tháng)
+                  </span>
+                </div>
+                <Divider type="vertical" />
+                {/* 🚀 GIAO DIỆN CHỌN GIỜ (THEO CA / TỰ CHỌN) */}
                 <div className="flex items-center gap-3">
                   <span
                     className={`text-sm ${!isManualTime ? "font-bold text-green-600" : "text-gray-400"}`}
@@ -383,9 +559,14 @@ export default function BookingPage() {
                       setIsManualTime(val);
                       setSelectedTime(null);
                     }}
+                    disabled={isRecurring} // Nếu đang đặt cố định thì không cho tắt Tự chọn giờ
                   />
                   <span
-                    className={`text-sm ${isManualTime ? "font-bold text-green-600" : "text-gray-400"}`}
+                    className={`text-sm ${
+                      isManualTime
+                        ? "font-bold text-green-600"
+                        : "text-gray-400"
+                    }`}
                   >
                     Tự chọn giờ
                   </span>
@@ -427,7 +608,27 @@ export default function BookingPage() {
                 </Space>
               </div>
 
-              {!isManualTime ? (
+              {/* 🚀 HIỂN THỊ CHỌN SỐ THÁNG NẾU LÀ ĐẶT CỐ ĐỊNH */}
+              {isRecurring && (
+                <div className="bg-white p-6 rounded-xl border border-dashed border-green-300 shadow-sm mb-6">
+                  <p className="mb-2 font-black italic uppercase text-[10px] text-green-600">
+                    Chọn số tháng muốn đặt cố định *
+                  </p>
+                  <Select
+                    size="large"
+                    className="w-full h-12"
+                    value={recurringMonths}
+                    onChange={setRecurringMonths}
+                  >
+                    <Option value={1}>1 Tháng (4 buổi)</Option>
+                    <Option value={3}>3 Tháng (12 buổi)</Option>
+                    <Option value={6}>6 Tháng (24 buổi)</Option>
+                  </Select>
+                </div>
+              )}
+
+              {/* Ẩn chế độ "Theo ca" nếu đang đặt cố định */}
+              {!isManualTime && !isRecurring ? (
                 <Spin spinning={scheduleLoading}>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {TIME_SLOTS.map((slot) => {
@@ -481,13 +682,15 @@ export default function BookingPage() {
                         className="w-full h-12 rounded-xl"
                         value={dayjs(manualTime.start, "HH:mm")}
                         disabledTime={() => ({
-                          disabledHours: () =>
-                            date?.isSame(dayjs(), "day")
-                              ? Array.from(
-                                  { length: dayjs().hour() },
-                                  (_, i) => i,
-                                )
-                              : [],
+                          disabledHours: () => {
+                            const hours = [0, 1, 2, 3]; // Chặn từ 0h đến 3h sáng
+                            if (date?.isSame(dayjs(), "day")) {
+                              for (let i = 4; i < dayjs().hour(); i++) {
+                                hours.push(i);
+                              }
+                            }
+                            return hours;
+                          },
                           disabledMinutes: (h) =>
                             date?.isSame(dayjs(), "day") && h === dayjs().hour()
                               ? Array.from(
@@ -517,27 +720,25 @@ export default function BookingPage() {
                         disabledTime={() => {
                           const startTime = dayjs(manualTime.start, "HH:mm");
                           return {
-                            // Vô hiệu hóa các giờ nhỏ hơn giờ bắt đầu
                             disabledHours: () => {
-                              const hours = [];
-                              for (let i = 0; i < 24; i++) {
-                                // Nếu là ngày hôm nay, chặn các giờ đã qua
+                              const hours = [1, 2, 3]; // Chặn 1h, 2h, 3h (ĐỂ LẠI 0h00 LÀM MỐC KẾT THÚC)
+                              for (let i = 4; i < 24; i++) {
                                 if (
                                   date?.isSame(dayjs(), "day") &&
                                   i < dayjs().hour()
-                                ) {
+                                )
                                   hours.push(i);
-                                }
-                                // Luôn chặn các giờ nhỏ hơn giờ bắt đầu đã chọn
-                                if (i < startTime.hour()) {
-                                  hours.push(i);
-                                }
+                                if (i < startTime.hour()) hours.push(i);
                               }
-                              return [...new Set(hours)]; // Loại bỏ trùng lặp
+                              return [...new Set(hours)];
                             },
-                            // Vô hiệu hóa các phút nhỏ hơn phút bắt đầu nếu cùng giờ
                             disabledMinutes: (selectedHour) => {
                               const minutes = [];
+                              // Nếu chọn 0h00 thì chỉ cho phép chọn phút 0
+                              if (selectedHour === 0) {
+                                for (let i = 1; i < 60; i++) minutes.push(i);
+                                return minutes;
+                              }
                               if (selectedHour === startTime.hour()) {
                                 for (let i = 0; i <= startTime.minute(); i++) {
                                   minutes.push(i);
@@ -572,6 +773,13 @@ export default function BookingPage() {
                     * Vui lòng đối chiếu bảng trạng thái phía trên để tránh chọn
                     trùng giờ đã bận.
                   </Text>
+                  {(isManualTime || isRecurring) &&
+                    pricing &&
+                    pricing.durationInHours < 1 && (
+                      <div className="text-red-500 mt-2 text-sm italic font-bold">
+                        * Thời gian đặt sân tự chọn tối thiểu là 1 giờ!
+                      </div>
+                    )}
                 </div>
               )}
             </CustomCard>
@@ -652,6 +860,12 @@ export default function BookingPage() {
                   <span>Thời lượng:</span>
                   <span>{pricing?.durationInHours.toFixed(1)} giờ</span>
                 </div>
+                {isRecurring && pricing && (
+                  <div className="flex justify-between text-purple-600 font-bold italic">
+                    <span>Số buổi:</span>
+                    <span>{pricing.totalSessions} buổi</span>
+                  </div>
+                )}
                 <div className="flex justify-between uppercase italic font-black text-xs">
                   <span>Khung giờ:</span>
                   <span
@@ -683,6 +897,14 @@ export default function BookingPage() {
                         <span>{pricing.surcharge.toLocaleString()}đ</span>
                       </div>
                     )}
+                    {pricing && pricing.depositRequired > 0 && (
+                      <div className="flex justify-between text-red-500 font-black uppercase italic mt-2 pt-2 border-t border-dashed border-emerald-200">
+                        <span>
+                          <InfoCircleOutlined /> Cần cọc (30%):
+                        </span>
+                        <span>{pricing.depositRequired.toLocaleString()}đ</span>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className="flex justify-between items-center pt-2">
@@ -704,16 +926,116 @@ export default function BookingPage() {
                   block
                   loading={isSubmitting}
                   onClick={handleSubmit}
-                  disabled={!pricing}
-                  className="h-16 rounded-[20px] bg-gradient-to-r from-green-500 to-emerald-600 border-none font-black italic uppercase shadow-xl hover:scale-105 active:scale-95 transition-all"
+                  disabled={
+                    !pricing ||
+                    ((isManualTime || isRecurring) &&
+                      pricing.durationInHours < 1)
+                  }
+                  className="h-16 rounded-[20px] bg-gradient-to-r from-green-500 to-emerald-600 border-none font-black italic uppercase shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  XÁC NHẬN ĐẶT SÂN
+                  {isRecurring ? "TẠO CHUỖI ĐẶT SÂN" : "XÁC NHẬN ĐẶT SÂN"}
                 </Button>
               </div>
             </Card>
           </Col>
         </Row>
       </div>
+      {/* 🚀 VỊ TRÍ VÀNG: DÁN TOÀN BỘ ĐOẠN CODE MODAL CỦA NÍ VÀO ĐÂY */}
+      {/* 🚀 MODAL THANH TOÁN CỌC ĐÃ TÍCH HỢP MÃ QR ĐỘNG VIETQR */}
+      <Modal
+        title={
+          <div className="text-center font-black italic uppercase text-slate-800 text-lg border-b pb-2">
+            Thanh Toán Cọc Giữ Chỗ (30%)
+          </div>
+        }
+        open={showDepositModal}
+        onOk={() => {
+          setShowDepositModal(false);
+          navigate("/fields");
+        }}
+        onCancel={() => {
+          setShowDepositModal(false);
+          navigate("/fields");
+        }}
+        okText="Tôi đã hiểu & Quay lại trang chủ"
+        cancelButtonProps={{ style: { display: "none" } }}
+        closable={false}
+        maskClosable={false}
+        centered
+        width={500}
+      >
+        <div className="py-4 space-y-4">
+          <div className="text-center">
+            <Badge
+              status="processing"
+              text={
+                <span className="font-bold text-emerald-600 text-xs uppercase">
+                  Hệ thống đang giữ chỗ tạm thời cho chuỗi đơn của bạn
+                </span>
+              }
+            />
+          </div>
+
+          {/* 🚀 PHẦN MỚI: Hiển thị mã QR động thông minh */}
+          {modalDetails && (
+            <div className="flex justify-center my-2 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
+              <img
+                src={`https://img.vietqr.io/image/MB-0372786250-compact2.png?amount=${modalDetails.deposit}&addInfo=${encodeURIComponent(`COC SAN ${modalDetails.groupId}`)}&accountName=${encodeURIComponent("TRUONG THANH HOA")}`}
+                alt="Mã QR Chuyển Khoản Cọc Sân"
+                className="w-56 h-56 object-contain border-2 border-dashed border-emerald-400 p-1.5 rounded-xl"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+            </div>
+          )}
+          <div className="text-center text-[11px] text-orange-500 font-bold italic">
+            ⚡ Mẹo nhỏ: Mở App Ngân hàng quét mã QR trên để tự động điền Tiền &
+            Nội dung!
+          </div>
+
+          <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5 font-semibold text-slate-700 text-sm shadow-inner">
+            <p>
+              🏦 Ngân hàng:{" "}
+              <span className="font-black text-slate-900">
+                MB BANK (Ngân hàng Quân Đội)
+              </span>
+            </p>
+            <p>
+              💳 Số tài khoản:{" "}
+              <span className="font-black text-blue-600 tracking-wider text-base">
+                0372786250
+              </span>
+            </p>
+            <p>
+              👤 Chủ tài khoản:{" "}
+              <span className="font-black text-slate-900 uppercase">
+                TRUONG THANH HOA
+              </span>
+            </p>
+            <p>
+              💰 Số tiền cần cọc:{" "}
+              <span className="font-black text-red-500 text-base">
+                {(modalDetails?.deposit || 0).toLocaleString()}đ
+              </span>
+            </p>
+
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-800 font-bold mt-2">
+              📌 Nội dung chuyển khoản bắt buộc (chính xác từng chữ): <br />
+              <span className="text-xs font-black text-slate-900 bg-white px-2 py-1.5 rounded border border-orange-300 inline-block mt-1 select-all tracking-wider">
+                COC SAN {modalDetails?.groupId}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-[11px] italic text-center text-gray-400 m-0 leading-relaxed">
+            * Sau khi thực hiện chuyển khoản thành công, Ban quản lý sân bóng sẽ
+            xác minh số dư hệ thống và kích hoạt trạng thái "Approved" (Đã
+            duyệt) đồng loạt cho cả chuỗi lịch của bạn.
+          </p>
+        </div>
+      </Modal>
+      {/* 🚀 KẾT THÚC ĐOẠN ĐOẠN CODE MODAL */}
     </div>
   );
 }

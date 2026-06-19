@@ -29,6 +29,9 @@ export interface Booking {
     | "rejected";
   total_price: number; // ✅ Đổi từ total_amount thành total_price để khớp UI
   total_amount?: number;
+  amount_paid?: number;
+  payment_type?: "full" | "deposit";
+  payment_status?: string;
   notes?: string;
   created_at: string;
   updated_at: string;
@@ -102,6 +105,44 @@ const staffBookingService = {
       const err = error as { response?: { data?: { message?: string } } };
       console.error(`[Staff Service] ❌ Lỗi updateStatus (${id}):`, err);
       throw err;
+    }
+  },
+
+  /**
+   * Cập nhật hàm createBooking trỏ đúng sang endpoint store2 chuyên dụng của Staff
+   */
+  createBooking: async (
+    data: Partial<Booking>,
+  ): Promise<ApiResponse<Booking>> => {
+    console.log("[Staff Service] >>> Đang đẩy payload sang store2:", data);
+    try {
+      // ĐẢM BẢO ĐOẠN NÀY PHẢI CÓ CHỮ "/staff/bookings"
+      const response = await api.post<ApiResponse<Booking>>(
+        "/staff/bookings/create",
+        data,
+      );
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Staff Service] ❌ Lỗi createBooking:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 🚀 BỔ SUNG: Hàm tạo chuỗi đặt sân định kỳ còn thiếu
+   * Trỏ đến endpoint /bookings/recurring của BookingController@createRecurring
+   */
+  createRecurringBooking: async (data: any): Promise<any> => {
+    console.log(
+      "[Staff Service] >>> Đang đẩy payload ĐƠN CHUỖI sang create-recurring:",
+      data,
+    );
+    try {
+      const response = await api.post("/bookings/recurring", data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Staff Service] ❌ Lỗi createRecurringBooking:", error);
+      throw error;
     }
   },
 };
