@@ -255,7 +255,7 @@ const Products: React.FC = () => {
                 <Option value="price-asc">Giá tăng dần</Option>
                 <Option value="price-desc">Giá giảm dần</Option>
               </Select>
-              <Badge count={cartCount} showZero>
+              {/* <Badge count={cartCount} showZero>
                 <Button 
                   icon={<ShoppingCartOutlined />} 
                   size="large" 
@@ -264,7 +264,7 @@ const Products: React.FC = () => {
                 >
                   GIỎ HÀNG
                 </Button>
-              </Badge>
+              </Badge> */}
             </div>
 
             {loading ? (

@@ -30,13 +30,13 @@ export default function CategoryEdit() {
   const navigate = useNavigate();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [fetching, setFetching] = useState(true);
+  const [fetching, setFetching] = useState(true); // Biến điều khiển Spin chính
 
   // 1. Fetch dữ liệu cũ khi vào trang
   useEffect(() => {
     const fetchCategoryData = async () => {
       try {
-        setFetching(true);
+        setFetching(true); // Bắt đầu trạng thái tải
         const res = await categoryService.getCategoryById(Number(id));
         const category = res.data;
 
@@ -44,8 +44,7 @@ export default function CategoryEdit() {
           name: category.name,
           description: category.description,
           sort_order: category.sort_order,
-          is_active: String(category.is_active), // Chuyển sang string để đồng bộ với Radio Group
-          // Hiển thị ảnh cũ trong Upload component
+          is_active: String(category.is_active),
           image: category.image
             ? [
                 {
@@ -58,35 +57,24 @@ export default function CategoryEdit() {
             : [],
         });
       } catch (error: any) {
-        // 1. Kiểm tra xem có lỗi Validation (422) từ Laravel không
-        if (error.response && error.response.status === 422) {
-          const errors = error.response.data.errors;
-
-          // Lấy câu lỗi đầu tiên của từng trường bị sai
-          Object.keys(errors).forEach((key) => {
-            message.error(errors[key][0]); // Hiện đúng câu: "Tên danh mục... đã bị trùng..."
-          });
-        } else {
-          // 2. Nếu là lỗi khác (500, mất mạng...)
-          message.error(
-            error.response?.data?.message ||
-              "Lỗi hệ thống, kiểm tra lại server bro ơi!"
-          );
-        }
+        message.error(
+          error.response?.data?.message || "Không thể tải dữ liệu danh mục!",
+        );
       } finally {
-        setLoading(false);
+        // ✅ CỐT LÕI: Phải tắt fetching ở đây dù thành công hay lỗi để dừng Spin
+        setFetching(false);
       }
     };
 
     if (id) fetchCategoryData();
-  }, [id, form, navigate]);
+    // 💡 Chỉ chạy khi id thay đổi, tránh loop render
+  }, [id, form]);
 
   // 2. Xử lý submit cập nhật
   const onFinish = async (values: any) => {
     try {
       setLoading(true);
       const formData = new FormData();
-      // Laravel yêu cầu _method PUT khi gửi FormData qua POST để update
       formData.append("_method", "PUT");
       formData.append("name", values.name);
       if (values.description)
@@ -103,19 +91,32 @@ export default function CategoryEdit() {
       message.success("Cập nhật danh mục thành công rực rỡ! ✨");
       navigate("/admin/categories");
     } catch (error: any) {
-      message.error(
-        error.response?.data?.message ||
-          "Cập nhật thất bại, kiểm tra lại tên hoặc thứ tự!"
-      );
+      if (error.response && error.response.status === 422) {
+        const errors = error.response.data.errors;
+        Object.keys(errors).forEach((key) => {
+          message.error(errors[key][0]);
+        });
+      } else {
+        message.error(
+          error.response?.data?.message ||
+            "Cập nhật thất bại, kiểm tra lại dữ liệu!",
+        );
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ HIỆN MÀN HÌNH LOADING KHI ĐANG FETCH DỮ LIỆU
   if (fetching)
     return (
-      <div className="h-screen flex items-center justify-center">
-        <Spin size="large" tip="Đang tải dữ liệu danh mục..." />
+      <div className="h-screen flex items-center justify-center bg-[#f8fafc]">
+        <Space direction="vertical" align="center">
+          <Spin size="large" />
+          <Text className="font-black italic uppercase text-emerald-500 animate-pulse">
+            Đang chuẩn bị dữ liệu Platinum...
+          </Text>
+        </Space>
       </div>
     );
 

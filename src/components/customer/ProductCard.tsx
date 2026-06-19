@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, Button, Tag, Typography, Space } from "antd";
+import { Card, Button, Tag, Typography, Space, message } from "antd"; // Thêm message
 import { ShoppingCartOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { Product } from "@/services/customer/productService";
@@ -19,6 +19,39 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const STORAGE_URL = "http://127.0.0.1:8000/storage/";
+
+  // ✅ HÀM XỬ LÝ THÊM VÀO GIỎ RIÊNG BIỆT
+  const handleInternalAddToCart = () => {
+    const userStr = localStorage.getItem("user");
+    let cartKey = "cart_guest";
+
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      cartKey = `cart_user_${user.id}`;
+    }
+
+    const currentCart = JSON.parse(localStorage.getItem(cartKey) || "[]");
+    const existingItem = currentCart.find(
+      (item: any) => item.id === product.id,
+    );
+
+    let updatedCart;
+    if (existingItem) {
+      updatedCart = currentCart.map((item: any) =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item,
+      );
+    } else {
+      updatedCart = [...currentCart, { ...product, quantity: 1 }];
+    }
+
+    localStorage.setItem(cartKey, JSON.stringify(updatedCart));
+    window.dispatchEvent(new Event("storage"));
+    // message.success(`Đã thêm ${product.name} vào giỏ hàng!`);
+
+    if (onAddToCart) onAddToCart(product);
+  };
 
   const getCategoryLabel = (category: string): string => {
     const labels: Record<string, string> = {
@@ -56,11 +89,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 ? product.image
                 : `${STORAGE_URL}${product.image?.replace(/^\//, "")}`
             }
-            /**
-             * 🛑 CHỖ THAY ĐỔI CHIẾN THUẬT:
-             * - w-full: Ép ảnh giãn hết 100% chiều ngang của khung (hết khoảng trắng bên phải).
-             * - object-contain: Đảm bảo toàn bộ nội dung ảnh vẫn hiển thị đủ, không bị cắt khúc.
-             */
             className="w-full h-full object-contain transition-transform duration-500 hover:scale-110"
             onError={(e) => {
               (e.target as HTMLImageElement).src =
@@ -120,10 +148,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             type="default"
             icon={<ShoppingCartOutlined />}
             className="flex-1 border-emerald-600 text-emerald-600 font-bold italic uppercase h-10 rounded-lg hover:bg-emerald-50"
-            onClick={() => onAddToCart?.(product)}
+            onClick={handleInternalAddToCart}
             disabled={product.stock === 0}
           >
-            Giỏ hàng
+            Thêm Giỏ hàng
           </Button>
 
           <Button

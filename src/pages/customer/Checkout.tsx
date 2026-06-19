@@ -71,21 +71,16 @@ const Checkout: React.FC = () => {
     { title: "Hoàn tất", icon: <CheckCircleOutlined /> },
   ];
 
-  // 🚀 TỰ ĐỘNG LẤY THÔNG TIN TÀI KHOẢN ĐANG ĐĂNG NHẬP
-  // 🚀 TỰ ĐỘNG LẤY THÔNG TIN TÀI KHOẢN ĐANG ĐĂNG NHẬP
-  // 🚀 TỰ ĐỘNG LẤY THÔNG TIN TÀI KHOẢN ĐANG ĐĂNG NHẬP
   useEffect(() => {
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-
-        // 🛑 BÍ KÍP "QUÉT MẠNG NHỆN": Thử mọi trường hợp SĐT có thể tồn tại
         const phoneNumber =
           user.phone ||
           user.customer_phone ||
           user.phone_number ||
-          user.profile?.phone || // Kiểm tra trong object profile lồng nhau
+          user.profile?.phone ||
           user.profile?.phone_number ||
           "";
 
@@ -95,10 +90,7 @@ const Checkout: React.FC = () => {
           email: user.email || "",
         };
 
-        // Điền dữ liệu vào Form Ant Design
         form.setFieldsValue(initialInfo);
-
-        // Đồng bộ vào state để dùng cho bước thanh toán
         setOrderInfoState((prev) => ({ ...prev, ...initialInfo }));
       } catch (e) {
         console.error("Lỗi parse thông tin user:", e);
@@ -106,17 +98,36 @@ const Checkout: React.FC = () => {
     }
   }, [form]);
 
+  // ✅ CẬP NHẬT LOGIC NHẬN DỮ LIỆU CHỌN LỌC TỪ GIỎ HÀNG
   useEffect(() => {
     if (!orderId) {
       const newId = `ORD${Math.floor(100000 + Math.random() * 900000)}`;
       setOrderId(newId);
     }
 
-    const state = location.state as { buyNowItem?: CartItem } | null;
+    const state = location.state as {
+      buyNowItem?: CartItem;
+      checkoutItems?: CartItem[];
+    } | null;
+
     if (state?.buyNowItem) {
+      // 1. Nếu mua ngay 1 sản phẩm
       setCartItems([state.buyNowItem]);
+    } else if (state?.checkoutItems && state.checkoutItems.length > 0) {
+      // 2. Nếu chọn một vài sản phẩm từ giỏ hàng gửi qua
+      setCartItems(state.checkoutItems);
     } else {
-      const savedCart = localStorage.getItem("cart");
+      // 3. Trường hợp vào trực tiếp hoặc fallback (Lấy giỏ hàng theo ID người dùng nếu có)
+      const userStr = localStorage.getItem("user");
+      let cartKey = "cart"; // Mặc định cũ
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          cartKey = `cart_user_${user.id}`;
+        } catch (e) {}
+      }
+
+      const savedCart = localStorage.getItem(cartKey);
       if (savedCart) {
         setCartItems(JSON.parse(savedCart) as CartItem[]);
       }
@@ -158,11 +169,38 @@ const Checkout: React.FC = () => {
 
       await checkoutService.storeOrder(orderData);
 
-      const state = location.state as { buyNowItem?: CartItem } | null;
+      // ✅ LOGIC DỌN DẸP GIỎ HÀNG SAU KHI THANH TOÁN
+      const state = location.state as {
+        buyNowItem?: CartItem;
+        checkoutItems?: CartItem[];
+      } | null;
+
+      // Nếu không phải là "Mua ngay" (tức là thanh toán từ giỏ hàng)
       if (!state?.buyNowItem) {
-        localStorage.removeItem("cart");
+        const userStr = localStorage.getItem("user");
+        let cartKey = userStr
+          ? `cart_user_${JSON.parse(userStr).id}`
+          : "cart_guest";
+
+        if (state?.checkoutItems) {
+          // CHỈ XÓA NHỮNG MÓN ĐÃ MUA khỏi giỏ hàng chính thức
+          const currentFullCart: CartItem[] = JSON.parse(
+            localStorage.getItem(cartKey) || "[]",
+          );
+          const remainingCart = currentFullCart.filter(
+            (cartItem) =>
+              !state.checkoutItems?.some(
+                (boughtItem) => boughtItem.id === cartItem.id,
+              ),
+          );
+          localStorage.setItem(cartKey, JSON.stringify(remainingCart));
+        } else {
+          // Fallback xóa hết nếu không có thông tin cụ thể
+          localStorage.removeItem(cartKey);
+        }
         window.dispatchEvent(new Event("storage"));
       }
+
       setCurrentStep(2);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } } };

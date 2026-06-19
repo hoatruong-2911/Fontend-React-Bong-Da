@@ -1,14 +1,28 @@
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { ShoppingCart, Menu, User, LogOut, UserCircle } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import {
+  ShoppingCart,
+  Menu,
+  User,
+  LogOut,
+  UserCircle,
+  Star,
+  Facebook,
+  Instagram,
+  Twitter,
+  MapPin,
+  Phone,
+  MessageSquare,
+  ChevronRight,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Typography, Dropdown, Avatar, message } from "antd";
+import { motion, AnimatePresence } from "framer-motion";
 import authService, { User as UserType } from "../services/authService";
 
 const { Text, Title } = Typography;
 
-// 🛑 FIX 1: Khai báo rõ ràng mảng NavLink để hết lỗi "Cannot find name"
 interface NavLinkItem {
   href: string;
   label: string;
@@ -19,7 +33,8 @@ const navLinks: NavLinkItem[] = [
   { href: "/products", label: "Sản phẩm" },
   { href: "/fields", label: "Sân bóng" },
   { href: "/booking", label: "Đặt sân" },
-  { href: "/orders", label: "Đơn hàng" },
+  { href: "/concacts", label: "Liên Hệ" },
+  { href: "/maps", label: "Chỉ đường" },
   { href: "/aboutus", label: "Giới thiệu" },
 ];
 
@@ -32,139 +47,187 @@ export default function CustomerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [cartItemCount, setCartItemCount] = useState<number>(0);
-
-  // Sử dụng Interface UserType từ service, dẹp bỏ any
+  const [isScrolled, setIsScrolled] = useState(false);
   const [user, setUser] = useState<UserType | null>(
-    authService.getStoredUser()
+    authService.getStoredUser(),
   );
 
-  useEffect(() => {
-    const updateCartCount = () => {
-      const cart: CartItem[] = JSON.parse(localStorage.getItem("cart") || "[]");
-      setCartItemCount(cart.reduce((sum, item) => sum + item.quantity, 0));
-    };
+  // const updateCartCount = useCallback(() => {
+  //   const cart: CartItem[] = JSON.parse(localStorage.getItem("cart") || "[]");
+  //   setCartItemCount(cart.reduce((sum, item) => sum + item.quantity, 0));
+  // }, []);
 
+  const updateCartCount = useCallback(() => {
+    const userStr = localStorage.getItem("user");
+    let cartKey = "cart_guest";
+
+    if (userStr) {
+      try {
+        const userData = JSON.parse(userStr);
+        cartKey = `cart_user_${userData.id}`;
+      } catch (e) {
+        cartKey = "cart_guest";
+      }
+    }
+
+    const cart = JSON.parse(localStorage.getItem(cartKey) || "[]");
+    setCartItemCount(
+      cart.reduce((sum: number, item: any) => sum + item.quantity, 0),
+    );
+  }, []);
+  // useEffect(() => {
+  //   const handleScroll = () => setIsScrolled(window.scrollY > 20);
+  //   const handleUserUpdate = () => setUser(authService.getStoredUser());
+
+  //   updateCartCount();
+  //   window.addEventListener("scroll", handleScroll);
+  //   window.addEventListener("storage", updateCartCount);
+  //   window.addEventListener("userUpdate", handleUserUpdate);
+  //   const interval = setInterval(updateCartCount, 1000);
+
+  //   return () => {
+  //     window.removeEventListener("scroll", handleScroll);
+  //     window.removeEventListener("storage", updateCartCount);
+  //     window.removeEventListener("userUpdate", handleUserUpdate);
+  //     clearInterval(interval);
+  //   };
+  // }, [updateCartCount]);
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     const handleUserUpdate = () => {
       setUser(authService.getStoredUser());
+      updateCartCount(); // Cập nhật lại số lượng khi user thay đổi (login/logout)
     };
 
     updateCartCount();
+    window.addEventListener("scroll", handleScroll);
     window.addEventListener("storage", updateCartCount);
     window.addEventListener("userUpdate", handleUserUpdate);
     const interval = setInterval(updateCartCount, 1000);
 
     return () => {
+      window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("storage", updateCartCount);
       window.removeEventListener("userUpdate", handleUserUpdate);
       clearInterval(interval);
     };
-  }, []);
-
+  }, [updateCartCount]);
+  // const handleLogout = async () => {
+  //   try {
+  //     await authService.logout();
+  //     message.success("Hẹn gặp lại nhà vô địch!");
+  //     setUser(null);
+  //     navigate("/", { replace: true });
+  //   } catch (error: unknown) {
+  //     message.error("Lỗi khi đăng xuất!");
+  //   }
+  // };
   const handleLogout = async () => {
     try {
       await authService.logout();
       message.success("Hẹn gặp lại nhà vô địch!");
+
+      // 1. Xóa thông tin user
       setUser(null);
+
+      // ✅ 2. CẬP NHẬT NGAY SỐ LƯỢNG GIỎ HÀNG
+      // Để nó quay về đếm giỏ hàng của khách (cart_guest) ngay lập tức
+      updateCartCount();
+
       navigate("/", { replace: true });
-    } catch (error) {
+    } catch (error: unknown) {
       message.error("Lỗi khi đăng xuất!");
     }
   };
 
-  // 🛑 FIX 2: Logic lấy URL ảnh chuẩn xác giống Admin để hiện ảnh
   const avatarPath = user?.profile?.avatar || user?.avatar;
   const avatarUrl = avatarPath
     ? `http://127.0.0.1:8000/${avatarPath.replace(/^\//, "")}`
     : null;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <header className="sticky top-0 z-50 w-full border-b border-white/20 bg-white/80 backdrop-blur-xl shadow-sm">
-        <div className="container flex h-20 items-center justify-between px-4">
-          {/* Logo rực rỡ */}
+    <div className="min-h-screen flex flex-col bg-[#053d2f]">
+      {/* 1. NAVBAR GLASSMORPHISM */}
+      <nav
+        className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+          isScrolled
+            ? "bg-[#053d2f]/80 backdrop-blur-xl shadow-lg py-3"
+            : "bg-transparent py-6"
+        }`}
+      >
+        <div className="container mx-auto px-6 flex justify-between items-center">
+          {/* Logo */}
           <Link
             to="/"
-            className="flex items-center gap-2 group transition-transform hover:scale-105"
+            className="flex items-center gap-3 group transition-transform hover:scale-105"
           >
-            <div className="bg-gradient-to-br from-[#10b981] to-[#059669] p-2 rounded-xl shadow-lg shadow-green-100">
-              <span className="text-2xl drop-shadow-md">⚽</span>
+            <div className="bg-emerald-500 p-2 rounded-xl group-hover:rotate-12 transition-transform shadow-lg shadow-emerald-500/20">
+              <Star className="text-white w-6 h-6 fill-current" />
             </div>
-            <div className="flex flex-col leading-none">
-              <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#064e3b] to-[#10b981] tracking-tighter">
-                STADIUM POS
-              </span>
-              <span className="text-[10px] font-bold text-green-600 tracking-widest uppercase">
-                Premium Quality
-              </span>
-            </div>
+            <span className="text-2xl font-black italic tracking-tighter text-white uppercase">
+              WESPORT <span className="text-emerald-400">PLATINUM</span>
+            </span>
           </Link>
 
-          {/* Desktop Navigation - Đã hết lỗi NavLink */}
-          <nav className="hidden md:flex items-center gap-1 bg-gray-100/50 p-1.5 rounded-2xl border border-gray-200">
+          {/* Desktop Nav */}
+          <div className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 to={link.href}
-                className={`px-5 py-2 text-sm font-bold rounded-xl transition-all duration-300 ${
+                className={`text-xs font-black uppercase tracking-widest transition-all hover:text-emerald-400 ${
                   location.pathname === link.href
-                    ? "bg-white text-[#10b981] shadow-sm"
-                    : "text-gray-500 hover:text-[#10b981] hover:bg-white/50"
+                    ? "text-emerald-400"
+                    : "text-white/80"
                 }`}
               >
                 {link.label}
               </Link>
             ))}
-          </nav>
+          </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             {/* Giỏ hàng */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="relative bg-white shadow-sm border border-gray-100 rounded-full hover:bg-green-50"
+            <button
               onClick={() => navigate("/cart")}
+              className="relative p-3 bg-white/5 rounded-2xl border border-white/10 text-white hover:bg-emerald-500 transition-all"
             >
-              <ShoppingCart className="h-5 w-5" />
+              <ShoppingCart size={20} />
               {cartItemCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-[10px] font-black text-white flex items-center justify-center animate-bounce shadow-md border-2 border-white">
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-emerald-400 text-[10px] font-black text-[#053d2f] flex items-center justify-center animate-bounce border-2 border-[#053d2f]">
                   {cartItemCount}
                 </span>
               )}
-            </Button>
+            </button>
 
-            {/* Profile Dropdown Rực Rỡ NHƯ ADMIN */}
-            <div className="hidden md:flex items-center gap-4 border-l pl-4 border-gray-200">
+            {/* Profile */}
+            <div className="hidden md:block">
               {user ? (
                 <Dropdown
                   menu={{
                     items: [
                       {
-                        key: "profile",
+                        key: "p",
                         label: "Hồ sơ cá nhân",
-                        icon: (
-                          <UserCircle className="w-4 h-4 text-emerald-500" />
-                        ),
+                        icon: <UserCircle className="w-4 h-4" />,
                         onClick: () => navigate("/profile"),
                       },
                       {
-                        key: "orders",
-                        label: "Đơn hàng của tôi",
-                        icon: (
-                          <ShoppingCart className="w-4 h-4 text-emerald-500" />
-                        ),
+                        key: "o",
+                        label: "Lịch Sử Đơn hàng",
+                        icon: <ShoppingCart className="w-4 h-4" />,
                         onClick: () => navigate("/orders"),
                       },
                       {
-                        key: "booking",
-                        label: "lịch sử đặt sân ",
-                        icon: (
-                          <ShoppingCart className="w-4 h-4 text-emerald-500" />
-                        ),
+                        key: "b",
+                        label: "Lịch Sử Đặt sân",
+                        icon: <Star className="w-4 h-4" />,
                         onClick: () => navigate("/pitch-bookings"),
                       },
                       { type: "divider" },
                       {
-                        key: "logout",
+                        key: "l",
                         label: "Đăng xuất",
                         icon: <LogOut className="w-4 h-4" />,
                         danger: true,
@@ -172,108 +235,89 @@ export default function CustomerLayout() {
                       },
                     ],
                   }}
-                  placement="bottomRight"
                   trigger={["click"]}
                 >
-                  <div className="flex items-center gap-3 cursor-pointer bg-white/50 p-1 pr-5 rounded-full border border-emerald-100 hover:bg-emerald-50/50 transition-all group relative overflow-hidden shadow-sm">
-                    {/* Hiệu ứng Aura phát sáng rực rỡ */}
+                  <div className="flex items-center gap-3 cursor-pointer bg-white/5 p-1.5 pr-5 rounded-full border border-white/10 hover:bg-white/20 transition-all group relative overflow-hidden shadow-xl">
                     <div className="relative flex items-center justify-center">
-                      <div className="absolute inset-0 rounded-full bg-emerald-400 opacity-70 blur-md animate-ping-slow"></div>
+                      <div className="absolute inset-0 rounded-full bg-emerald-400 opacity-20 blur-md animate-pulse"></div>
                       <Avatar
-                        key={avatarUrl}
                         src={avatarUrl}
-                        size={44}
-                        className="border-2 border-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.5)] z-10 relative transition-transform duration-300 group-hover:scale-110"
+                        size={38}
                         icon={<User />}
+                        className="border-2 border-emerald-400 z-10 relative"
                       />
                     </div>
                     <div className="hidden lg:block text-left leading-tight ml-1 z-10">
-                      <Text className="block text-sm font-black text-slate-800 uppercase italic tracking-tighter">
+                      <Text className="block text-xs font-black text-white uppercase italic">
                         {user.name}
                       </Text>
-                      <div className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                        <Text className="text-emerald-500 text-[9px] uppercase font-black italic tracking-widest">
-                          MEMBER VIP
-                        </Text>
-                      </div>
+                      <Text className="text-emerald-400 text-[8px] font-black uppercase tracking-widest">
+                        Member VIP
+                      </Text>
                     </div>
-                    {/* Hiệu ứng Shine vệt sáng lướt qua */}
-                    <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/40 to-transparent group-hover:animate-shine" />
+                    <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:animate-shine" />
                   </div>
                 </Dropdown>
               ) : (
-                <Button
-                  size="sm"
-                  className="bg-[#10b981] hover:bg-[#059669] font-bold rounded-full px-8 shadow-lg shadow-green-100"
-                  onClick={() => navigate("/login")}
-                >
-                  Đăng nhập
-                </Button>
+                // ✅ Bọc 2 nút trong 1 div flex để không bị lỗi JSX và căn chỉnh đẹp
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => navigate("/login")}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-[#053d2f] px-6 py-2.5 rounded-xl font-black text-xs uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    ĐĂNG NHẬP
+                  </button>
+
+                  <button
+                    onClick={() => navigate("/register")}
+                    className="bg-emerald-500 hover:bg-emerald-400 text-[#053d2f] px-6 py-2.5 rounded-xl font-black text-xs uppercase transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    ĐĂNG KÝ
+                  </button>
+                </div>
               )}
             </div>
 
             {/* Mobile Menu */}
             <Sheet>
-              <SheetTrigger asChild className="md:hidden">
+              <SheetTrigger asChild className="lg:hidden">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="bg-white shadow-sm border border-gray-100 rounded-full"
+                  className="text-emerald-400 bg-white/5 rounded-xl"
                 >
-                  <Menu className="h-5 w-5" />
+                  <Menu className="h-6 w-6" />
                 </Button>
               </SheetTrigger>
               <SheetContent
                 side="right"
-                className="w-[300px] border-l-4 border-[#10b981]"
+                className="bg-[#053d2f] border-l border-white/10 text-white"
               >
-                <div className="flex flex-col gap-6 mt-10">
-                  <div className="flex items-center gap-3 mb-4">
-                    <span className="text-3xl">⚽</span>
-                    <Title level={4} className="m-0 font-black text-[#064e3b]">
-                      STADIUM POS
-                    </Title>
-                  </div>
+                <div className="flex flex-col gap-6 mt-12">
                   {navLinks.map((link) => (
                     <Link
                       key={link.href}
                       to={link.href}
-                      className="text-lg font-black text-gray-700 hover:text-[#10b981] transition-colors"
+                      className="text-2xl font-black italic uppercase text-emerald-50 hover:text-emerald-400 transition-colors"
                     >
                       {link.label}
                     </Link>
                   ))}
-                  <hr className="my-2 border-dashed border-green-200" />
+                  <hr className="border-white/10" />
                   {user ? (
-                    <div className="space-y-4">
-                      <Button
-                        variant="outline"
-                        className="w-full rounded-2xl font-bold py-6 justify-start"
-                        onClick={() => navigate("/profile")}
-                      >
-                        <Avatar
-                          src={avatarUrl}
-                          size={32}
-                          className="mr-3 border border-emerald-400"
-                          icon={<User />}
-                        />{" "}
-                        Hồ sơ cá nhân
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        className="w-full rounded-2xl font-bold py-6"
-                        onClick={handleLogout}
-                      >
-                        Đăng xuất
-                      </Button>
-                    </div>
+                    <Button
+                      variant="destructive"
+                      onClick={handleLogout}
+                      className="rounded-2xl py-6 font-black uppercase italic"
+                    >
+                      Đăng xuất
+                    </Button>
                   ) : (
                     <Button
-                      className="w-full rounded-2xl bg-[#10b981] font-bold py-6 shadow-xl"
                       onClick={() => navigate("/login")}
+                      className="bg-emerald-500 rounded-2xl py-6 font-black uppercase italic"
                     >
-                      Đăng nhập ngay
+                      Đăng nhập
                     </Button>
                   )}
                 </div>
@@ -281,17 +325,96 @@ export default function CustomerLayout() {
             </Sheet>
           </div>
         </div>
-      </header>
+      </nav>
 
-      <main className="flex-1 relative">
-        <div className="absolute top-0 inset-x-0 h-64 bg-gradient-to-b from-green-50 to-transparent pointer-events-none -z-10" />
+      {/* 2. MAIN CONTENT */}
+      <main className="flex-grow pt-24">
         <Outlet />
       </main>
 
-      {/* Hiệu ứng chuyển động rực rỡ */}
+      {/* 3. FOOTER 4 CỘT RỰC RỠ NHƯ MẪU */}
+      <footer className="bg-[#03231b] text-white pt-24 pb-12 border-t border-white/5">
+        <div className="container mx-auto px-6">
+          <div className="grid lg:grid-cols-4 gap-16 mb-20">
+            <div className="lg:col-span-2">
+              <div className="flex items-center gap-3 mb-8">
+                <div className="bg-emerald-500 p-2.5 rounded-xl shadow-lg">
+                  <Star className="text-white w-7 h-7 fill-current" />
+                </div>
+                <span className="text-3xl font-black italic tracking-tighter uppercase">
+                  THANH HÓA <span className="text-emerald-400">Soccer</span>
+                </span>
+              </div>
+              <p className="text-emerald-100/60 text-lg mb-10 max-w-md leading-relaxed font-medium italic">
+                Nâng tầm trải nghiệm bóng đá phong trào tại Ninh Thuận với hệ
+                thống quản lý chuyên nghiệp và cơ sở vật chất Platinum bậc nhất.
+              </p>
+              <div className="flex gap-4">
+                {[Facebook, Instagram, Twitter].map((Icon, idx) => (
+                  <a
+                    key={idx}
+                    href="#"
+                    className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center hover:bg-emerald-500 hover:-translate-y-1 transition-all border border-white/5"
+                  >
+                    <Icon size={24} />
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-black mb-8 uppercase tracking-[0.2em] text-emerald-400">
+                Thông tin
+              </h4>
+              <ul className="space-y-5 text-emerald-100/60 font-bold italic text-sm">
+                <li className="flex items-start gap-3 hover:text-white transition-colors cursor-pointer">
+                  <MapPin className="text-emerald-500 shrink-0" size={20} />
+                  <span>123 Stadium Drive, Phan Rang, Ninh Thuận</span>
+                </li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-pointer">
+                  <Phone className="text-emerald-500 shrink-0" size={20} />
+                  <span>0372.786.259</span>
+                </li>
+                <li className="flex items-center gap-3 hover:text-white transition-colors cursor-pointer">
+                  <MessageSquare
+                    className="text-emerald-500 shrink-0"
+                    size={20}
+                  />
+                  <span>thanhhoasoccer@gmail.com</span>
+                </li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-black mb-8 uppercase tracking-[0.2em] text-emerald-400">
+                Bản tin
+              </h4>
+              <p className="text-emerald-100/60 mb-6 text-sm italic">
+                Đăng ký để nhận thông báo về các giải đấu và ưu đãi Platinum mới
+                nhất.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  placeholder="Email của bạn"
+                  className="flex-grow bg-white/5 border border-white/10 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 text-sm italic"
+                />
+                <button className="bg-emerald-500 p-3 rounded-xl hover:bg-emerald-400 transition-all text-white">
+                  <ChevronRight size={24} />
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="pt-10 border-t border-white/5 text-center text-emerald-100/20 text-[10px] font-black uppercase tracking-[0.3em]">
+            © {new Date().getFullYear()} Thanh Hóa Soccer Platinum System. All
+            rights reserved.
+          </div>
+        </div>
+      </footer>
+
       <style>{`
         @keyframes shine { 100% { left: 125%; } }
-        .group:hover .group-hover\\:animate-shine, .group:hover .animate-shine { animation: shine 0.8s ease-in-out; }
+        .animate-shine { animation: shine 0.8s ease-in-out; }
         @keyframes ping-slow { 75%, 100% { transform: scale(1.4); opacity: 0; } }
         .animate-ping-slow { animation: ping-slow 2.5s cubic-bezier(0, 0, 0.2, 1) infinite; }
       `}</style>

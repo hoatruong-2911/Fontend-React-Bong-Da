@@ -68,6 +68,13 @@ const attendanceService = {
     const response = await api.delete(`/admin/attendances/${id}`);
     return response.data;
   },
+
+  // ✅ HÀM MỚI: Staff tự xem lịch sử chấm công
+  getMyAttendance: async (month?: number, year?: number) => {
+    const params = { month, year };
+    const response = await api.get("/staff/my-attendance", { params });
+    return response.data;
+  },
 };
 
 export default attendanceService;

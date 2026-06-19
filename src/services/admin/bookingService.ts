@@ -1,6 +1,41 @@
 import api from "../api";
 
 // 1. Định nghĩa Interface Booking chuẩn (Khớp với Model & Protected Casts)
+// export interface Booking {
+//   id: number;
+//   user_id: number;
+//   field_id: number;
+//   booking_date: string;
+//   start_time: string;
+//   end_time: string;
+//   duration: number;
+//   total_amount: number;
+//   status:
+//     | "pending"
+//     | "confirmed"
+//     | "playing"
+//     | "completed"
+//     | "cancelled"
+//     | "approved"
+//     | "rejected";
+//   customer_name: string;
+//   customer_phone: string;
+//   notes?: string;
+//   field?: {
+//     id: number;
+//     name: string;
+//     price: number;
+//   };
+//   user?: {
+//     id: number;
+//     name: string;
+//     profile?: {
+//       phone?: string;
+//     };
+//   };
+//   created_at: string;
+//   updated_at: string;
+// }
 export interface Booking {
   id: number;
   user_id: number;
@@ -10,6 +45,9 @@ export interface Booking {
   end_time: string;
   duration: number;
   total_amount: number;
+  deposit_amount?: number; // 👈 Bổ sung trường tiền cọc
+  payment_status?: "unpaid" | "partial_paid" | "paid"; // 👈 Bổ sung trạng thái thanh toán
+  recurring_group_id?: string | null; // 👈 Bổ sung mã chuỗi định kỳ
   status:
     | "pending"
     | "confirmed"
@@ -36,6 +74,15 @@ export interface Booking {
   created_at: string;
   updated_at: string;
 }
+
+export interface FieldOccupation {
+  id: number;
+  field_id: number;
+  start_time: string;
+  end_time: string;
+  status: string;
+}
+
 
 // 2. Interface cho phản hồi API chung
 export interface ApiResponse<T> {
@@ -109,6 +156,17 @@ const adminBookingService = {
     }
   },
 
+  // 🚀 BỔ SUNG CHÍNH XÁC: Tạo chuỗi đặt sân định kỳ cho Admin
+  createRecurringBooking: async (data: any): Promise<any> => {
+    try {
+      const response = await api.post("/bookings/recurring", data);
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Admin Service] ❌ Lỗi tạo đặt sân định kỳ:", error);
+      throw error;
+    }
+  },
+
   // 4. Cập nhật thông tin booking (PUT)
   updateBooking: async (
     id: number | string,
@@ -149,7 +207,22 @@ const adminBookingService = {
       throw error;
     }
   },
-
+  // 🚀 BỔ SUNG CHÍNH XÁC: Đồng bộ hàm lấy lịch bận chi tiết theo đúng logic cấu trúc của lưới ca 30 phút
+  getFieldSchedule: async (
+    field_id: number,
+    date: string,
+  ): Promise<ApiResponse<FieldOccupation[]>> => {
+    try {
+      const response = await api.get<ApiResponse<FieldOccupation[]>>(
+        "/bookings/field-schedule",
+        { params: { field_id, date } },
+      );
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Admin Service] ❌ Lỗi getFieldSchedule lịch bận:", error);
+      throw error;
+    }
+  },
   // 6. Cập nhật trạng thái nhanh (PATCH)
   updateStatus: async (
     id: number | string,
@@ -192,6 +265,23 @@ const adminBookingService = {
       `/bookings/${id}/cancel-my-booking`,
     );
     return response.data;
+  },
+
+  confirmDeposit: async (
+    recurringGroupId: string,
+  ): Promise<ApiResponse<any>> => {
+    console.log(
+      `[Admin Service] >>> Kích hoạt duyệt cọc mã chuỗi: ${recurringGroupId}`,
+    );
+    try {
+      const response = await api.post<ApiResponse<any>>(
+        `/bookings/confirm-deposit/${recurringGroupId}`,
+      );
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Admin Service] ❌ Lỗi confirmDeposit:", error);
+      throw error;
+    }
   },
 };
 

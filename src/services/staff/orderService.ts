@@ -1,55 +1,45 @@
-import api from '../api';
+import api from "../api";
+import { OrderResponse } from "../customer/checkoutService";
 
-export interface Order {
-  id: number;
+// --- ĐỊNH NGHĨA TYPES (Khớp với OrderController và Model ní gửi) ---
+export interface CreateOrderPayload {
   order_code: string;
-  customer_name?: string;
-  customer_phone?: string;
-  items: any[];
-  subtotal: number;
-  discount: number;
-  tax: number;
-  total: number;
-  status: 'pending' | 'preparing' | 'completed' | 'cancelled';
-  payment_method?: string;
-  payment_status: 'unpaid' | 'paid' | 'refunded';
+  customer_name: string;
+  phone: string;
+  email?: string;
   notes?: string;
-  created_at: string;
+  payment_method: "qr" | "cash";
+  total_amount: number;
+  status: string; // "confirmed" hoặc "paid"
+  items: {
+    product_id: number;
+    price: number;
+    quantity: number;
+  }[];
 }
 
-export interface OrderFilters {
-  status?: string;
-  payment_status?: string;
-  date_from?: string;
-  date_to?: string;
-  page?: number;
-  per_page?: number;
-}
-
-// Staff Order API
 const staffOrderService = {
-  // Lấy danh sách đơn hàng
-  getOrders: async (filters?: OrderFilters) => {
-    const response = await api.get('/orders', { params: filters });
-    return response.data;
+  // 1. Lấy danh sách sản phẩm để hiển thị trong Modal (Dùng API sẵn có)
+  getProducts: () => {
+    return api.get("/products");
   },
 
-  // Lấy chi tiết đơn hàng
-  getOrder: async (id: number) => {
-    const response = await api.get(`/orders/${id}`);
-    return response.data;
+  // 2. Lấy danh sách đơn hàng ( Laravel lọc theo Role )
+  getAllOrders: () => {
+    return api.get("/orders");
   },
 
-  // Cập nhật trạng thái đơn hàng
-  updateStatus: async (id: number, status: Order['status']) => {
-    const response = await api.patch(`/orders/${id}/status`, { status });
-    return response.data;
+  // 3. Cập nhật trạng thái đơn (Xác nhận, Thu tiền...)
+  updateStatus: (id: number, status: string) => {
+    return api.put(`/orders/${id}/status`, { status });
   },
 
-  // Cập nhật trạng thái thanh toán
-  updatePaymentStatus: async (id: number, payment_status: Order['payment_status']) => {
-    const response = await api.patch(`/orders/${id}/payment`, { payment_status });
-    return response.data;
+  /**
+   * ✅ HÀM QUAN TRỌNG: Tạo đơn hàng tại quầy
+   * Gửi về đúng endpoint /orders mà Backend đã có hàm store()
+   */
+  createOrder: (data: CreateOrderPayload) => {
+    return api.post<OrderResponse>("/orders", data);
   },
 };
 

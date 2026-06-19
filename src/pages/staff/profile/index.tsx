@@ -1,291 +1,206 @@
-import { useState } from 'react';
-import { 
-  Card, 
-  Form, 
-  Input, 
-  Button, 
-  Avatar, 
-  Typography, 
-  Row, 
-  Col, 
+import { useState, useEffect, useCallback } from "react";
+import {
+  Card,
+  Avatar,
+  Typography,
   Tabs,
-  Table,
+  Spin,
+  message,
   Tag,
-  Progress,
-  Switch,
-  message
-} from 'antd';
-import { 
-  UserOutlined, 
-  MailOutlined, 
-  PhoneOutlined, 
-  LockOutlined,
-  EditOutlined,
-  SaveOutlined,
+  Space,
+} from "antd";
+import {
+  UserOutlined,
+  SafetyOutlined,
   CalendarOutlined,
   TrophyOutlined,
-  BellOutlined
-} from '@ant-design/icons';
+  LoadingOutlined,
+} from "@ant-design/icons";
+import adminUserService, { User } from "@/services/admin/userService";
+import dashboardService, {
+  StaffDashboardStats,
+} from "@/services/staff/dashboardService";
+
+import PersonalInfo from "./PersonalInfo";
+import Security from "./Security";
+// import ShiftHistory from "./ShiftHistory";
+import Performance from "./Performance";
+import StaffWeeklySchedule from "./StaffWeeklySchedule";
+import StaffAttendanceHistory from "./StaffAttendanceHistory";
 
 const { Title, Text } = Typography;
 
-// Mock staff data
-const mockStaff = {
-  id: 'NV001',
-  name: 'Trần Văn B',
-  email: 'tranvanb@stadium.com',
-  phone: '0987 654 321',
-  position: 'Nhân viên quầy',
-  department: 'Bán hàng',
-  avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-  startDate: '15/03/2024',
-  totalShifts: 120,
-  rating: 4.8,
-  attendance: 96,
-};
-
-// Mock shift history
-const mockShiftHistory = [
-  { id: 1, date: '29/05/2025', shift: 'Ca sáng', checkIn: '06:55', checkOut: '14:05', status: 'completed' },
-  { id: 2, date: '28/05/2025', shift: 'Ca chiều', checkIn: '13:58', checkOut: '22:02', status: 'completed' },
-  { id: 3, date: '27/05/2025', shift: 'Ca sáng', checkIn: '07:10', checkOut: '14:00', status: 'late' },
-  { id: 4, date: '26/05/2025', shift: 'Ca tối', checkIn: '17:55', checkOut: '23:58', status: 'completed' },
-];
-
 export default function StaffProfile() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [form] = Form.useForm();
+  const [user, setUser] = useState<User | null>(null);
+  const [stats, setStats] = useState<StaffDashboardStats | null>(null);
+  const [fetching, setFetching] = useState<boolean>(true);
 
-  const handleSave = () => {
-    message.success('Cập nhật thông tin thành công!');
-    setIsEditing(false);
-  };
+  const fetchProfile = useCallback(async () => {
+    try {
+      setFetching(true);
+      const [userRes, staffRes] = await Promise.all([
+        adminUserService.getMe(),
+        dashboardService.getOverview(),
+      ]);
 
-  const shiftColumns = [
-    { title: 'Ngày', dataIndex: 'date', key: 'date' },
-    { title: 'Ca làm', dataIndex: 'shift', key: 'shift' },
-    { title: 'Giờ vào', dataIndex: 'checkIn', key: 'checkIn' },
-    { title: 'Giờ ra', dataIndex: 'checkOut', key: 'checkOut' },
-    { 
-      title: 'Trạng thái', 
-      dataIndex: 'status', 
-      key: 'status',
-      render: (status: string) => (
-        <Tag color={status === 'completed' ? 'green' : status === 'late' ? 'orange' : 'red'}>
-          {status === 'completed' ? 'Đúng giờ' : status === 'late' ? 'Đi muộn' : 'Vắng'}
-        </Tag>
-      )
-    },
-  ];
+      setUser(userRes.data);
+      setStats(staffRes.data.stats);
+    } catch (error: unknown) {
+      message.error("Không thể tải thông tin hồ sơ Platinum");
+    } finally {
+      setFetching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  if (fetching || !user)
+    return (
+      <div className="h-[80vh] flex items-center justify-center">
+        <Spin indicator={<LoadingOutlined style={{ fontSize: 40 }} spin />} />
+      </div>
+    );
 
   const tabItems = [
     {
-      key: 'info',
-      label: <span><UserOutlined /> Thông tin cá nhân</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Form
-            form={form}
-            layout="vertical"
-            initialValues={mockStaff}
-            disabled={!isEditing}
-          >
-            <Row gutter={24}>
-              <Col xs={24} md={12}>
-                <Form.Item label="Họ và tên" name="name">
-                  <Input prefix={<UserOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Email" name="email">
-                  <Input prefix={<MailOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Số điện thoại" name="phone">
-                  <Input prefix={<PhoneOutlined />} size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Vị trí" name="position">
-                  <Input disabled size="large" />
-                </Form.Item>
-              </Col>
-              <Col xs={24} md={12}>
-                <Form.Item label="Phòng ban" name="department">
-                  <Input disabled size="large" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </Form>
-          <div className="flex justify-end gap-3 mt-4">
-            {isEditing ? (
-              <>
-                <Button onClick={() => setIsEditing(false)}>Hủy</Button>
-                <Button type="primary" icon={<SaveOutlined />} onClick={handleSave}>
-                  Lưu thay đổi
-                </Button>
-              </>
-            ) : (
-              <Button type="primary" icon={<EditOutlined />} onClick={() => setIsEditing(true)}>
-                Chỉnh sửa
-              </Button>
-            )}
-          </div>
-        </Card>
+      key: "info",
+      label: (
+        <span className="flex items-center gap-2">
+          <UserOutlined /> Thông tin cá nhân
+        </span>
       ),
+      children: <PersonalInfo user={user} onRefresh={fetchProfile} />,
+    },
+
+    {
+      key: "performance",
+      label: (
+        <span className="flex items-center gap-2">
+          <TrophyOutlined /> Hiệu suất
+        </span>
+      ),
+      children: stats ? <Performance stats={stats} /> : <Spin />,
     },
     {
-      key: 'shifts',
-      label: <span><CalendarOutlined /> Lịch sử ca làm</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Table 
-            dataSource={mockShiftHistory} 
-            columns={shiftColumns} 
-            rowKey="id"
-            pagination={false}
-          />
-        </Card>
+      key: "history", // Khớp với key của tab Lịch sử ca
+      label: (
+        <span>
+          <CalendarOutlined /> Lịch sử chấm công
+        </span>
       ),
+      children: <StaffAttendanceHistory />, // ✅ Ghi đè nội dung cũ bằng component thật
     },
     {
-      key: 'performance',
-      label: <span><TrophyOutlined /> Hiệu suất</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Row gutter={[24, 24]}>
-            <Col xs={24} md={12}>
-              <Card className="bg-muted/30">
-                <div className="text-center">
-                  <div className="text-sm text-muted-foreground mb-2">Tỉ lệ chuyên cần</div>
-                  <Progress 
-                    type="circle" 
-                    percent={mockStaff.attendance} 
-                    strokeColor="#62B462"
-                  />
-                </div>
-              </Card>
-            </Col>
-            <Col xs={24} md={12}>
-              <Card className="bg-muted/30">
-                <div className="text-center">
-                  <div className="text-sm text-muted-foreground mb-2">Đánh giá</div>
-                  <div className="text-4xl font-bold text-primary">{mockStaff.rating}</div>
-                  <div className="text-yellow-500 text-xl">★★★★★</div>
-                </div>
-              </Card>
-            </Col>
-            <Col xs={24}>
-              <Card className="bg-muted/30">
-                <Row gutter={24}>
-                  <Col xs={8} className="text-center">
-                    <div className="text-2xl font-bold text-primary">{mockStaff.totalShifts}</div>
-                    <div className="text-sm text-muted-foreground">Tổng ca làm</div>
-                  </Col>
-                  <Col xs={8} className="text-center">
-                    <div className="text-2xl font-bold text-green-500">115</div>
-                    <div className="text-sm text-muted-foreground">Đúng giờ</div>
-                  </Col>
-                  <Col xs={8} className="text-center">
-                    <div className="text-2xl font-bold text-orange-500">5</div>
-                    <div className="text-sm text-muted-foreground">Đi muộn</div>
-                  </Col>
-                </Row>
-              </Card>
-            </Col>
-          </Row>
-        </Card>
+      key: "schedule",
+      label: (
+        <span>
+          <CalendarOutlined /> Lịch làm việc
+        </span>
       ),
+      children: <StaffWeeklySchedule />, // ✅ Gắn component vào đây
     },
     {
-      key: 'security',
-      label: <span><LockOutlined /> Bảo mật</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <Form layout="vertical">
-            <Form.Item label="Mật khẩu hiện tại">
-              <Input.Password prefix={<LockOutlined />} size="large" />
-            </Form.Item>
-            <Form.Item label="Mật khẩu mới">
-              <Input.Password prefix={<LockOutlined />} size="large" />
-            </Form.Item>
-            <Form.Item label="Xác nhận mật khẩu mới">
-              <Input.Password prefix={<LockOutlined />} size="large" />
-            </Form.Item>
-            <Button type="primary" icon={<SaveOutlined />}>
-              Đổi mật khẩu
-            </Button>
-          </Form>
-        </Card>
+      key: "security",
+      label: (
+        <span className="flex items-center gap-2">
+          <SafetyOutlined /> Bảo mật
+        </span>
       ),
-    },
-    {
-      key: 'notifications',
-      label: <span><BellOutlined /> Thông báo</span>,
-      children: (
-        <Card className="border-0 shadow-sm">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Thông báo ca làm</div>
-                <div className="text-sm text-muted-foreground">Nhận nhắc nhở trước ca làm</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex justify-between items-center py-3 border-b">
-              <div>
-                <div className="font-medium">Đơn hàng mới</div>
-                <div className="text-sm text-muted-foreground">Nhận thông báo khi có đơn hàng mới</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex justify-between items-center py-3">
-              <div>
-                <div className="font-medium">Tin tức công ty</div>
-                <div className="text-sm text-muted-foreground">Nhận thông báo từ quản lý</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </div>
-        </Card>
-      ),
+      children: <Security />,
     },
   ];
 
+  const avatarUrl = user?.profile?.avatar
+    ? `http://127.0.0.1:8000/${user.profile.avatar}`
+    : null;
+
   return (
-    <div className="space-y-6">
-      {/* Profile Header */}
-      <Card className="border-0 shadow-md">
-        <div className="flex flex-col md:flex-row items-center gap-6">
-          <Avatar src={mockStaff.avatar} size={120} icon={<UserOutlined />} />
+    <div className="space-y-6 animate-in fade-in duration-700">
+      <Card className="border-0 shadow-lg rounded-[2.5rem] bg-gradient-to-r from-emerald-900 to-slate-900 text-white overflow-hidden relative">
+        <div className="flex flex-col md:flex-row items-center gap-8 p-4 relative z-10">
+          <Avatar
+            size={120}
+            src={avatarUrl}
+            icon={<UserOutlined />}
+            className="border-4 border-emerald-400 shadow-2xl"
+          />
           <div className="text-center md:text-left flex-1">
-            <Title level={2} className="!mb-1">{mockStaff.name}</Title>
-            <Text className="text-primary font-medium">{mockStaff.position} - {mockStaff.department}</Text>
-            <div className="flex flex-wrap justify-center md:justify-start gap-6 mt-4">
-              <div>
-                <div className="text-sm text-muted-foreground">Mã NV</div>
-                <div className="font-medium">{mockStaff.id}</div>
+            <Title
+              level={2}
+              className="!text-white !mb-1 !font-black italic uppercase tracking-tighter"
+            >
+              {user?.name}
+            </Title>
+            <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
+              <Tag
+                color="emerald"
+                className="m-0 font-bold italic uppercase border-none px-3 py-0.5 rounded-lg"
+              >
+                {user?.role === "staff" ? "Nhân viên vận hành" : user?.role}
+              </Tag>
+              <Text className="text-emerald-300 font-black italic opacity-80 tracking-widest text-xs">
+                MÃ NV: #{user?.id.toString().padStart(4, "0")}
+              </Text>
+            </div>
+
+            <div className="flex flex-wrap justify-center md:justify-start gap-8 mt-4">
+              <div className="text-center">
+                <div className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">
+                  Email liên hệ
+                </div>
+                <div className="font-bold italic text-white text-sm">
+                  {user?.email}
+                </div>
               </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Ngày vào làm</div>
-                <div className="font-medium">{mockStaff.startDate}</div>
+              <div className="text-center border-l border-white/10 pl-8">
+                <div className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">
+                  Tỉ lệ chuyên cần
+                </div>
+                <div className="font-black italic text-lg text-white">
+                  {stats?.attendance?.completedShifts || 0} /{" "}
+                  {stats?.attendance?.totalShifts || 0} ca
+                </div>
               </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Chuyên cần</div>
-                <div className="font-medium text-green-500">{mockStaff.attendance}%</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Đánh giá</div>
-                <div className="font-medium text-yellow-500">★ {mockStaff.rating}</div>
+              <div className="text-center border-l border-white/10 pl-8">
+                <div className="text-[10px] text-emerald-400 font-black uppercase tracking-[0.2em] mb-1">
+                  Xếp hạng
+                </div>
+                <div className="font-black italic text-lg text-yellow-400">
+                  ★ {stats?.rating || 5.0}
+                </div>
               </div>
             </div>
           </div>
         </div>
+        <div className="absolute -right-10 -bottom-10 opacity-5">
+          <TrophyOutlined style={{ fontSize: "250px" }} />
+        </div>
       </Card>
 
-      {/* Tabs */}
-      <Tabs items={tabItems} size="large" />
+      <Tabs
+        items={tabItems}
+        size="large"
+        type="card"
+        className="platinum-tabs bg-white/80 backdrop-blur-md p-4 rounded-[2rem] shadow-xl"
+      />
+
+      <style>{`
+        .platinum-tabs .ant-tabs-nav::before { border: none !important; }
+        .platinum-tabs .ant-tabs-tab { 
+          border: none !important; 
+          background: #f1f5f9 !important; 
+          border-radius: 12px !important; 
+          margin-right: 8px !important;
+          font-weight: 800;
+          text-transform: uppercase;
+          font-style: italic;
+          transition: all 0.3s;
+        }
+        .platinum-tabs .ant-tabs-tab-active { background: #10b981 !important; }
+        .platinum-tabs .ant-tabs-tab-active .ant-tabs-tab-btn { color: white !important; }
+      `}</style>
     </div>
   );
 }

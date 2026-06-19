@@ -66,12 +66,12 @@ export interface WeeklyScheduleResponse {
 const shiftService = {
   // Lấy lịch làm việc theo tuần (mặc định tuần hiện tại)
   getWeeklyAssignments: async (
-    date?: string
+    date?: string,
   ): Promise<WeeklyScheduleResponse> => {
     const params = date ? { date } : {};
     const res = await api.get<WeeklyScheduleResponse>(
       "/admin/shift-assignments",
-      { params }
+      { params },
     );
     return res.data;
   },
@@ -89,7 +89,7 @@ const shiftService = {
 
   // Xóa ca làm
   removeAssignment: async (
-    id: number
+    id: number,
   ): Promise<{ success: boolean; message: string }> => {
     const res = await api.delete(`/admin/shift-assignments/${id}`);
     return res.data;
@@ -103,10 +103,10 @@ const shiftService = {
 
   // Lấy chi tiết ca làm
   getStaffShiftDetail: async (
-    id: string
+    id: string,
   ): Promise<{ success: boolean; data: StaffSchedule }> => {
     const res = await api.get<{ success: boolean; data: StaffSchedule }>(
-      `/admin/staff-shifts/${id}`
+      `/admin/staff-shifts/${id}`,
     );
     return res.data;
   },
@@ -122,11 +122,19 @@ const shiftService = {
   removeStaffWeeklyAssignments: async (
     staffId: number,
     startDate: string,
-    endDate: string
+    endDate: string,
   ) => {
     const res = await api.delete(`/admin/staff-assignments/bulk/${staffId}`, {
       params: { start_date: startDate, end_date: endDate },
     });
+    return res.data;
+  },
+
+  // Trong shiftService.ts
+  getMySchedule: async (date?: string) => {
+    const params = date ? { date } : {};
+    // ✅ SỬA URL: Phải gọi vào prefix staff như ní đã khai báo trong api.php
+    const res = await api.get("/staff/my-schedule", { params });
     return res.data;
   },
 };

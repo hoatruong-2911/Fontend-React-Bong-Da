@@ -64,6 +64,8 @@ import AdminDepartmentsAdd from "./pages/admin/departments/DepartmentAdd";
 import AdminDepartmentsEdit from "./pages/admin/departments/DepartmentEdit";
 import AdminDepartmentsDetails from "./pages/admin/departments/DepartmentDetail";
 
+
+
 // staff
 import StaffIndex from "./pages/admin/staff-management/index";
 import StaffAdd from "./pages/admin/staff-management/StaffAdd";
@@ -89,6 +91,13 @@ import CustomerDetail from "./pages/admin/customers/CustomerDetail";
 // quản lý giỏ hàng 
 import OrderManagement from "./pages/admin/order/OrderAdmin";
 import EditOrder from "./pages/admin/order/EditOrder";
+
+// quản lý liên hệ
+import ADminContact from "./pages/admin/contact/ContactManagement"; 
+import AddContact from "./pages/admin/contact/AddContact";
+import EditContact from "./pages/admin/contact/EditContact";
+
+
 
 //-------
 //----------------------
@@ -141,6 +150,15 @@ import CustomerProfile from "./pages/customer/profile/index";
 import NotFound from "./pages/NotFound";
 import { Order } from "./services/customer";
 
+//Mappp
+import MapLocation from "./pages/customer/MapLocation";
+import { Contact } from "lucide-react";
+// contact
+import ContactCustomer from "./pages/customer/ContactCustomer";
+import BookingHistory from "./pages/staff/bookings/BookingHistory";
+import OrderHistory from "./pages/staff/orders/OrderHistory";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -159,6 +177,8 @@ const App = () => (
             {/* Auth routes - no layout */}
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+
 
             {/* --- ADMIN & STAFF ROUTES: Được bảo vệ bởi ProtectedRoute --- */}
             {/* Cả Admin và Staff đều có thể vào các trang có prefix /admin (theo yêu cầu của bạn là Staff xem được) */}
@@ -274,6 +294,13 @@ const App = () => (
                   path="/admin/categories/:id"
                   element={<CategoryDetail />}
                 />
+
+                <Route path="/admin/contact" element={<ADminContact />} />
+                <Route path="/admin/contact/add" element={<AddContact />} />
+                <Route path="/admin/contact/edit/:id" element={<EditContact />} /> 
+                {/* <Route path="contacts/:id" element={<ContactDetail />} />  */}
+
+
               </Route>
               
 
@@ -286,8 +313,10 @@ const App = () => (
               <Route element={<StaffLayout />}>
                 <Route path="/staff" element={<StaffDashboard />} />
                 <Route path="/staff/bookings" element={<StaffBookings />} />
+                <Route path="/staff/bookings/history" element={<BookingHistory />} />
                 <Route path="/staff/fields" element={<StaffFields />} />
                 <Route path="/staff/orders" element={<StaffOrders />} />
+                <Route path="/staff/orders/history" element={<OrderHistory />} />
                 <Route path="/staff/profile" element={<StaffProfile />} />
               </Route>
             </Route>
@@ -302,6 +331,11 @@ const App = () => (
               <Route path="/fields/:id" element={<FieldDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/aboutus" element={<AboutUs />} />
+              <Route path="/maps" element={<MapLocation />} />
+              <Route path="/concacts" element={<ContactCustomer />} />
+
+
+
 
               {/* NHÓM 2: TRANG RIÊNG TƯ - BẮT BUỘC ĐĂNG NHẬP */}
               <Route

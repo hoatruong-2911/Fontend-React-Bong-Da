@@ -59,7 +59,7 @@ const authService = {
 
     if (!apiData || !apiData.user || !apiData.token) {
       throw new Error(
-        "Phản hồi đăng nhập không chứa thông tin người dùng hoặc token."
+        "Phản hồi đăng nhập không chứa thông tin người dùng hoặc token.",
       );
     }
 
@@ -135,14 +135,26 @@ const authService = {
   },
 
   changeMyPassword: async (data: Record<string, string>) => {
-      const response = await api.post("/auth/change-password", data);
-      return response.data;
-    },
+    const response = await api.post("/auth/change-password", data);
+    return response.data;
+  },
 
   // Get stored user from localStorage
   getStoredUser: (): User | null => {
     const user = localStorage.getItem("user");
     return user ? JSON.parse(user) : null;
+  },
+
+  // Gửi yêu cầu lấy mã OTP
+  sendOtp: async (email: string) => {
+    const response = await api.post("/auth/forgot-password", { email });
+    return response.data;
+  },
+
+  // Reset mật khẩu với mã OTP
+  resetPassword: async (data: any) => {
+    const response = await api.post("/auth/reset-password", data);
+    return response.data;
   },
 };
 

@@ -117,7 +117,7 @@ export default function ProductDetail() {
                 image: p.image,
                 stock: Number(p.stock) || 0,
                 is_active: true,
-              } as Product)
+              }) as Product,
           );
 
         setRelatedProducts(mappedRelated);
@@ -136,7 +136,7 @@ export default function ProductDetail() {
     if (!product) return;
     const cart = JSON.parse(localStorage.getItem("cart") || "[]");
     const existing = cart.find(
-      (item: { id: number }) => item.id === product.id
+      (item: { id: number }) => item.id === product.id,
     );
     if (existing) existing.quantity += quantity;
     else cart.push({ ...product, quantity });
@@ -514,14 +514,44 @@ export default function ProductDetail() {
           </div>
 
           {relatedProducts.length > 0 ? (
-            <Row gutter={[32, 32]}>
+            <Row gutter={[24, 40]}>
+              {" "}
+              {/* ✅ Chỉnh lại gutter cho thoáng và đều */}
               {relatedProducts.map((p) => (
                 <Col key={p.id} xs={24} sm={12} lg={6}>
                   <ProductCard
                     product={p}
-                    onAddToCart={(prod) =>
-                      message.success(`Đã thêm ${prod.name}`)
-                    }
+                    // ✅ CẬP NHẬT: Logic thêm giỏ hàng đúng chuẩn
+                    onAddToCart={() => {
+                      const cartKey = localStorage.getItem("user")
+                        ? `cart_user_${JSON.parse(localStorage.getItem("user")!).id}`
+                        : "cart_guest";
+                      const currentCart = JSON.parse(
+                        localStorage.getItem(cartKey) || "[]",
+                      );
+                      const exist = currentCart.find((i: any) => i.id === p.id);
+                      if (exist) exist.quantity += 1;
+                      else currentCart.push({ ...p, quantity: 1 });
+                      localStorage.setItem(
+                        cartKey,
+                        JSON.stringify(currentCart),
+                      );
+                      window.dispatchEvent(new Event("storage"));
+                      message.success(`Đã thêm ${p.name} vào giỏ hàng!`);
+                    }}
+                    // ✅ CẬP NHẬT: Logic Mua ngay cực cháy
+                    onBuyNow={() => {
+                      const buyNowItem = {
+                        id: p.id.toString(),
+                        name: p.name,
+                        image: p.image,
+                        price: p.price,
+                        quantity: 1,
+                        category: p.category,
+                        unit: p.unit,
+                      };
+                      navigate("/checkout", { state: { buyNowItem } });
+                    }}
                   />
                 </Col>
               ))}

@@ -27,6 +27,7 @@ import {
   PlayCircleOutlined,
   StopOutlined,
   DeleteOutlined,
+  DollarCircleOutlined,
 } from "@ant-design/icons";
 import adminBookingService, { Booking } from "@/services/admin/bookingService";
 import { authService } from "@/services";
@@ -38,7 +39,6 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-// Cập nhật Tag Trạng thái khớp với ENUM Database
 const getStatusTag = (status: string) => {
   const statusMap: Record<string, { color: string; text: string; icon: any }> =
     {
@@ -75,8 +75,72 @@ const getStatusTag = (status: string) => {
     icon: null,
   };
   return (
-    <Tag color={config.color} icon={config.icon}>
+    <Tag color={config.color} icon={config.icon} className="font-bold">
       {config.text.toUpperCase()}
+    </Tag>
+  );
+};
+
+// 🚀 ĐÃ TỐI ƯU TOÀN DIỆN: Fix dứt điểm lỗi lệch chuỗi trạng thái dòng tiền
+// 🚀 ĐÃ CẬP NHẬT TOÀN DIỆN: Đối soát chính xác trạng thái từ Database gửi về Index Admin
+const getPaymentStatusTag = (paymentStatus: string, depositAmount: number) => {
+  // Chuẩn hóa chuỗi dữ liệu
+  const status = (paymentStatus || "").toLowerCase().trim();
+
+  // 1. Kiểm tra trạng thái ĐÃ THANH TOÁN ĐỦ (fully_paid hoặc paid)
+  if (
+    status.includes("fully") ||
+    status === "paid" ||
+    status === "fully_paid"
+  ) {
+    return (
+      <Tag
+        color="green"
+        style={{ fontWeight: 700, borderRadius: 6 }}
+        className="px-3"
+      >
+        ĐÃ TRẢ ĐỦ
+      </Tag>
+    );
+  }
+
+  // 2. Kiểm tra trạng thái ĐÃ ĐÓNG CỌC 30% (partial_paid)
+  if (status.includes("partial") || status === "partial_paid") {
+    return (
+      <Tag
+        color="cyan"
+        style={{ fontWeight: 700, borderRadius: 6 }}
+        className="px-3"
+      >
+        ĐÃ CỌC 30%
+      </Tag>
+    );
+  }
+
+  // 3. Trường hợp đặc biệt: Đơn vãng lai đá liền không cần cọc tiền
+  if (
+    status === "no_deposit" ||
+    (depositAmount <= 0 && (status === "paid" || status === "fully_paid"))
+  ) {
+    return (
+      <Tag
+        color="blue"
+        style={{ fontWeight: 700, borderRadius: 6 }}
+        className="px-3"
+      >
+        KHÔNG CẦN CỌC
+      </Tag>
+    );
+  }
+
+  // 4. Mặc định hiển thị CHƯA CỌC
+  return (
+    <Tag
+      color="red"
+      style={{ fontWeight: 700, borderRadius: 6 }}
+      className="px-3"
+    >
+      CHƯA CỌC
     </Tag>
   );
 };
@@ -87,15 +151,30 @@ export default function BookingsManagement() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(false);
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalBookings, setTotalBookings] = useState<number>(0);
+
   const currentUser = authService.getStoredUser();
   const isAdmin = currentUser?.role === "admin";
 
-  const fetchBookings = async () => {
+  const fetchBookings = async (page = 1, currentStatus = statusFilter) => {
     try {
       setLoading(true);
-      const response = await adminBookingService.getBookings();
-      const result = response.data?.data || response.data || [];
-      setBookings(result);
+      const filters: any = { page };
+
+      if (currentStatus !== "all") {
+        filters.status = currentStatus;
+      }
+
+      const response = await adminBookingService.getBookings(filters);
+      const paginatedPayload = response.data as any;
+      const resultList = paginatedPayload?.data || [];
+      const totalCount = paginatedPayload?.total || 0;
+
+      setBookings(resultList);
+      setTotalBookings(totalCount);
+      setCurrentPage(page);
     } catch (error) {
       message.error("Không thể tải danh sách đặt sân");
     } finally {
@@ -104,26 +183,58 @@ export default function BookingsManagement() {
   };
 
   useEffect(() => {
-    fetchBookings();
-  }, []);
+    fetchBookings(1, statusFilter);
+  }, [statusFilter]);
 
   const stats = useMemo(
     () => ({
-      total: bookings.length,
+      total: totalBookings,
       pending: bookings.filter((b) => b.status === "pending").length,
       approved: bookings.filter((b) => b.status === "approved").length,
       playing: bookings.filter((b) => b.status === "playing").length,
     }),
-    [bookings]
+    [bookings, totalBookings],
   );
 
+  // 🚀 ĐÃ SỬA CHUẨN XỊN: Gọi đúng hàm updateStatus gốc, gửi PATCH chuẩn chỉ lên hàm changeStatus của Backend
   const handleUpdateStatus = async (id: number, status: string) => {
     try {
-      await adminBookingService.updateStatus(id, status);
-      message.success(`Đã chuyển trạng thái thành ${status}`);
-      fetchBookings();
+      setLoading(true);
+      // Gọi đúng endpoint PATCH /bookings/{id}/status thông qua hàm updateStatus gốc của ní
+      const response = await adminBookingService.updateStatus(id, status);
+
+      if (response.success) {
+        message.success(
+          `Đã chuyển trạng thái sang ${status.toUpperCase()} thành công!`,
+        );
+        fetchBookings(currentPage);
+      }
+    } catch (error: any) {
+      // 🚀 BẮT LỖI NGHIỆP VỤ: Nếu Backend chặn không cho đá vì sai ngày (Lỗi 403 / 422), bóc tách hiển thị ngay lên UI
+      const backendMessage = error.response?.data?.message;
+      if (backendMessage) {
+        message.error(backendMessage);
+      } else {
+        message.error("Hệ thống từ chối cập nhật trạng thái nhanh!");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDeposit = async (record: Booking) => {
+    const targetGroupId = record.recurring_group_id || String(record.id);
+    try {
+      setLoading(true);
+      await adminBookingService.confirmDeposit(targetGroupId);
+      message.success(
+        "Xác nhận tiền cọc thành công! Lịch sân đã được kích hoạt.",
+      );
+      fetchBookings(currentPage);
     } catch (error) {
-      message.error("Lỗi khi cập nhật trạng thái");
+      message.error("Lỗi hoặc không tìm thấy chuỗi đơn bận tương ứng!");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -132,7 +243,7 @@ export default function BookingsManagement() {
       setLoading(true);
       await adminBookingService.deleteBooking(id);
       message.success("Đã xóa đơn đặt sân rực rỡ!");
-      fetchBookings(); // Tải lại danh sách
+      fetchBookings(currentPage);
     } catch (error) {
       message.error("Lỗi khi xóa đơn đặt sân");
     } finally {
@@ -149,6 +260,11 @@ export default function BookingsManagement() {
         <div>
           <div className="font-bold text-gray-800">{record.customer_name}</div>
           <div className="text-xs text-gray-500">{record.customer_phone}</div>
+          {record.recurring_group_id && (
+            <div className="text-[10px] bg-purple-50 text-purple-600 font-black px-1.5 py-0.5 rounded border border-purple-100 w-fit mt-1">
+              ⛓️ CHUỖI: {record.recurring_group_id}
+            </div>
+          )}
         </div>
       ),
     },
@@ -163,8 +279,10 @@ export default function BookingsManagement() {
       key: "schedule",
       render: (_: any, record: Booking) => (
         <div>
-          <div>{record.booking_date}</div>
-          <div className="text-xs text-blue-600 font-medium">
+          <div className="font-medium text-slate-700">
+            {record.booking_date}
+          </div>
+          <div className="text-xs text-blue-600 font-bold">
             {record.start_time.substring(0, 5)} -{" "}
             {record.end_time.substring(0, 5)}
           </div>
@@ -172,17 +290,39 @@ export default function BookingsManagement() {
       ),
     },
     {
-      title: "Tổng tiền",
-      dataIndex: "total_amount",
-      key: "total_amount",
-      render: (value: number) => (
-        <span className="text-green-600 font-bold">
-          {formatCurrency(value)}
-        </span>
-      ),
+      title: "Chi phí & Tiền cọc",
+      key: "money_flow",
+      render: (_: any, record: Booking) => {
+        const deposit = record.deposit_amount || 0;
+        return (
+          <div className="space-y-0.5 text-xs">
+            <div>
+              Tổng:{" "}
+              <span className="text-green-600 font-bold">
+                {formatCurrency(record.total_amount)}
+              </span>
+            </div>
+            {deposit > 0 && (
+              <div className="text-red-500 font-medium">
+                Cọc 30%: <span>{formatCurrency(deposit)}</span>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
-      title: "Trạng thái",
+      title: "Trạng thái cọc",
+      dataIndex: "payment_status", // 🚀 BẮT BUỘC: Khai báo rõ ràng dataIndex để Antd bóc tách từ Object Booking
+      key: "payment_status",
+      render: (payment_status: string, record: Booking) =>
+        getPaymentStatusTag(
+          payment_status || record.payment_status || "unpaid", // Bọc lót hai đầu chống null dữ liệu
+          record.deposit_amount || 0,
+        ),
+    },
+    {
+      title: "Trạng thái đơn",
       dataIndex: "status",
       key: "status",
       render: (status: string) => getStatusTag(status),
@@ -191,7 +331,25 @@ export default function BookingsManagement() {
       title: "Thao tác nhanh",
       key: "actions",
       render: (_: any, record: Booking) => (
-        <Space size="middle">
+        <Space size="small">
+          {record.deposit_amount &&
+            record.deposit_amount > 0 &&
+            record.payment_status === "unpaid" &&
+            record.status === "pending" && (
+              <Tooltip title="Bấm xác nhận khi nhận được tiền cọc ngân hàng">
+                <Button
+                  disabled={!isAdmin}
+                  size="small"
+                  type="primary"
+                  icon={<DollarCircleOutlined />}
+                  className="bg-amber-500 border-amber-500 hover:bg-amber-600 font-bold text-xs"
+                  onClick={() => handleConfirmDeposit(record)}
+                >
+                  Duyệt cọc
+                </Button>
+              </Tooltip>
+            )}
+
           <Tooltip title="Xem chi tiết">
             <Button
               icon={<EyeOutlined />}
@@ -199,6 +357,7 @@ export default function BookingsManagement() {
               onClick={() => navigate(`/admin/bookings/${record.id}`)}
             />
           </Tooltip>
+
           <Tooltip title="Chỉnh sửa">
             <Button
               disabled={!isAdmin}
@@ -209,18 +368,25 @@ export default function BookingsManagement() {
             />
           </Tooltip>
 
-          {/* Nút thao tác theo quy trình */}
           {record.status === "pending" && (
             <>
-              <Button
-                disabled={!isAdmin}
-                size="small"
-                type="primary"
-                className="bg-blue-600"
-                onClick={() => handleUpdateStatus(record.id, "approved")}
-              >
-                Duyệt
-              </Button>
+              {!record.deposit_amount ||
+              record.deposit_amount <= 0 ||
+              record.payment_status !== "unpaid" ? (
+                <Button
+                  disabled={!isAdmin}
+                  size="small"
+                  type="primary"
+                  className="bg-blue-600"
+                  onClick={() => handleUpdateStatus(record.id, "approved")}
+                >
+                  Duyệt
+                </Button>
+              ) : (
+                <span className="text-[10px] text-orange-500 font-bold italic mr-1">
+                  ⚠️ Đợi cọc ngân hàng
+                </span>
+              )}
               <Button
                 disabled={!isAdmin}
                 size="small"
@@ -236,7 +402,7 @@ export default function BookingsManagement() {
             <Button
               disabled={!isAdmin}
               size="small"
-              className="bg-green-600 text-white border-green-600"
+              className="bg-green-600 text-white border-green-600 font-bold"
               onClick={() => handleUpdateStatus(record.id, "playing")}
             >
               Bắt đầu đá
@@ -249,13 +415,13 @@ export default function BookingsManagement() {
               size="small"
               type="primary"
               ghost
+              className="font-bold"
               onClick={() => handleUpdateStatus(record.id, "completed")}
             >
               Xong & Thu tiền
             </Button>
           )}
 
-          {/* Nút Hủy cho các đơn chưa hoàn thành */}
           {!["completed", "cancelled", "rejected"].includes(record.status) && (
             <Popconfirm
               title="Hủy đơn đặt này?"
@@ -270,7 +436,7 @@ export default function BookingsManagement() {
               />
             </Popconfirm>
           )}
-          {/* NÚT XÓA - CHỈ ADMIN MỚI THẤY HOẶC ENABLE */}
+
           <Popconfirm
             title="Xóa vĩnh viễn đơn này?"
             description="Hành động này không thể hoàn tác, bro chắc chứ?"
@@ -295,12 +461,14 @@ export default function BookingsManagement() {
   ];
 
   const filteredBookings = bookings.filter((booking) => {
-    const matchSearch =
+    return (
       booking.customer_name.toLowerCase().includes(searchText.toLowerCase()) ||
-      booking.id.toString().includes(searchText);
-    const matchStatus =
-      statusFilter === "all" || booking.status === statusFilter;
-    return matchSearch && matchStatus;
+      booking.id.toString().includes(searchText) ||
+      (booking.recurring_group_id &&
+        booking.recurring_group_id
+          .toLowerCase()
+          .includes(searchText.toLowerCase()))
+    );
   });
 
   return (
@@ -311,7 +479,7 @@ export default function BookingsManagement() {
             <Statistic
               title="Tổng đơn"
               value={stats.total}
-              valueStyle={{ color: "#1890ff" }}
+              valueStyle={{ color: "#1890ff", fontWeight: 800 }}
             />
           </Card>
         </Col>
@@ -321,7 +489,7 @@ export default function BookingsManagement() {
               title="Đang chờ"
               value={stats.pending}
               prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: "#faad14" }}
+              valueStyle={{ color: "#faad14", fontWeight: 800 }}
             />
           </Card>
         </Col>
@@ -331,7 +499,7 @@ export default function BookingsManagement() {
               title="Đã duyệt"
               value={stats.approved}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: "#1890ff" }}
+              valueStyle={{ color: "#1890ff", fontWeight: 800 }}
             />
           </Card>
         </Col>
@@ -341,7 +509,7 @@ export default function BookingsManagement() {
               title="Đang đá"
               value={stats.playing}
               prefix={<PlayCircleOutlined />}
-              valueStyle={{ color: "#52c41a" }}
+              valueStyle={{ color: "#52c41a", fontWeight: 800 }}
             />
           </Card>
         </Col>
@@ -351,7 +519,7 @@ export default function BookingsManagement() {
         <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
           <Space wrap size="middle">
             <Input
-              placeholder="Tìm mã đơn, tên khách..."
+              placeholder="Tìm mã đơn, tên khách, mã chuỗi..."
               prefix={<SearchOutlined />}
               className="w-80"
               size="large"
@@ -406,7 +574,10 @@ export default function BookingsManagement() {
           rowKey="id"
           loading={loading}
           pagination={{
-            pageSize: 10,
+            current: currentPage,
+            pageSize: 7,
+            total: totalBookings,
+            onChange: (page) => fetchBookings(page, statusFilter),
             showTotal: (total) => `Tổng cộng ${total} lượt đặt`,
           }}
           className="booking-table"
