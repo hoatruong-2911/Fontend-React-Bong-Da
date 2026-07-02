@@ -4,7 +4,6 @@ import {
   UserOutlined,
   HistoryOutlined,
   SafetyOutlined,
-  BellOutlined,
 } from "@ant-design/icons";
 import authService, { User } from "@/services/authService";
 
@@ -12,7 +11,6 @@ import authService, { User } from "@/services/authService";
 import PersonalInfo from "./PersonalInfo";
 import OrderHistory from "./OrderHistory";
 import Security from "./Security";
-import Notifications from "./Notifications";
 
 const { Title, Text } = Typography;
 
@@ -72,15 +70,6 @@ export default function CustomerProfile() {
       ),
       children: <Security />,
     },
-    {
-      key: "notifications",
-      label: (
-        <span>
-          <BellOutlined /> Thông báo
-        </span>
-      ),
-      children: <Notifications />,
-    },
   ];
 
   return (
@@ -106,9 +95,37 @@ export default function CustomerProfile() {
               >
                 {user?.name}
               </Title>
-              <Tag color="emerald" className="font-bold uppercase italic">
-                KHÁCH HÀNG VIP
-              </Tag>
+              {user?.customer_stats?.is_vip ? (
+                <Tag color="gold" className="font-bold uppercase italic rounded-full px-3 py-0.5 shadow-sm">
+                  🌟 KHÁCH HÀNG VIP
+                </Tag>
+              ) : (
+                <Tag color="blue" className="font-bold uppercase italic rounded-full px-3 py-0.5 shadow-sm">
+                  KHÁCH HÀNG THƯỜNG
+                </Tag>
+              )}
+
+              {user?.customer_stats && (
+                <div className="mt-4 p-3 bg-slate-50 border border-slate-100 rounded-2xl max-w-sm">
+                  <div className="flex justify-between text-xs font-black text-slate-500 uppercase italic mb-1">
+                    <span>Tích lũy chi tiêu:</span>
+                    <span className="text-emerald-600">
+                      {Number(user.customer_stats.total_spent || 0).toLocaleString()}đ / 5.000.000đ
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden shadow-inner">
+                    <div 
+                      className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                      style={{ width: `${Math.min((Number(user.customer_stats.total_spent || 0) / 5000000) * 100, 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-bold italic mt-1.5 mb-0">
+                    {user.customer_stats.is_vip 
+                      ? "🎉 Chúc mừng! Bạn đã đạt danh hiệu Khách hàng VIP rực rỡ!" 
+                      : `💡 Bạn cần tích lũy thêm ${Math.max(5000000 - Number(user.customer_stats.total_spent || 0), 0).toLocaleString()}đ chi tiêu để thăng hạng VIP.`}
+                  </p>
+                </div>
+              )}
               <div className="flex flex-wrap justify-center md:justify-start gap-6 mt-4 text-sm text-slate-500">
                 <div>
                   Email:{" "}

@@ -8,6 +8,7 @@ export interface CreateBookingData {
   customer_name: string;
   customer_phone: string;
   notes?: string;
+  payment_type?: string;
 }
 // BỔ SUNG: Dữ liệu gửi đi cho ĐẶT SÂN ĐỊNH KỲ (Recurring)
 export interface CreateRecurringBookingData {
@@ -19,6 +20,7 @@ export interface CreateRecurringBookingData {
   customer_name: string;
   customer_phone: string;
   notes?: string;
+  payment_type?: string;
 }
 
 // ĐỒNG BỘ: Cập nhật Interface Booking khớp 100% với database thật

@@ -65,17 +65,24 @@ export default function Addfield({
   // Xem ngày đang chọn là hôm nay hay tương lai
   const isToday = useMemo(() => date.isSame(dayjs(), "day"), [date]);
 
-  // Ép trạng thái nếu là vãng lai (đá hôm nay) thì bắt buộc thanh toán đủ
-  useEffect(() => {
-    if (isToday) {
-      setPaymentType("full");
-    }
-  }, [isToday, open]);
-
   // Watch các giá trị từ Form Antd
   const fieldPrice = Form.useWatch("fieldPrice", form);
   const startTimeStr = Form.useWatch("start_time", form);
   const manualEnd = Form.useWatch("manual_end", form);
+
+  // Tính khoảng cách từ giờ hiện tại đến thời điểm bắt đầu ca đá (tiếng)
+  const hoursDiff = useMemo(() => {
+    if (!startTimeStr) return 0;
+    const bookingStart = dayjs(`${date.format("YYYY-MM-DD")} ${startTimeStr}`);
+    return bookingStart.diff(dayjs(), "hour", true);
+  }, [date, startTimeStr]);
+
+  // Ép trạng thái nếu ca đá bắt đầu trong vòng 24h tới thì bắt buộc thanh toán đủ
+  useEffect(() => {
+    if (hoursDiff < 24) {
+      setPaymentType("full");
+    }
+  }, [hoursDiff, open]);
 
   // BIỂU THỨC TÍNH TOÁN GIÁ TIỀN & TIỀN CỌC ĐỒNG BỘ
   const pricing = useMemo(() => {
@@ -85,6 +92,11 @@ export default function Addfield({
     let endTimeStr = dayjs(`2000-01-01 ${startTimeStr}`)
       .add(90, "minute")
       .format("HH:mm");
+
+    if (startTimeStr === "22:30") {
+      durationInHours = 1.0;
+      endTimeStr = "23:30";
+    }
 
     if (isManualTime && manualEnd) {
       const start = dayjs(`2000-01-01 ${startTimeStr}`);
@@ -133,6 +145,15 @@ export default function Addfield({
     return diff > 0 ? diff : 0;
   }, [cashReceived, pricing]);
 
+  // Tự động điền số tiền khách đưa bằng số tiền cần thanh toán ban đầu
+  useEffect(() => {
+    if (pricing) {
+      setCashReceived(pricing.amountToPay);
+    } else {
+      setCashReceived(0);
+    }
+  }, [pricing?.amountToPay, open]);
+
   const handleFinish = async (values: any) => {
     if (!pricing) return;
 
@@ -142,11 +163,12 @@ export default function Addfield({
     console.log("Nút Payment Method chọn (cash/bank):", paymentMethod);
     console.log("Tiền khách đưa nhập vào ô tính thối:", cashReceived);
 
-    // Chốt chặn validate tiền mặt giữ nguyên...
+    // Chốt chặn validate tiền mặt
     if (paymentMethod === "cash") {
-      if (!cashReceived || cashReceived <= 0) {
+      const requiredAmount = pricing.amountToPay || 0;
+      if (!cashReceived || cashReceived < requiredAmount) {
         message.error(
-          "Ní ơi! Vui lòng nhập số tiền khách đưa vào trình tính tiền thối nhé!",
+          `Số tiền khách đưa (${cashReceived.toLocaleString()}đ) phải bằng hoặc lớn hơn số tiền cần thu (${requiredAmount.toLocaleString()}đ) ní ơi!`
         );
         return;
       }
@@ -168,7 +190,7 @@ export default function Addfield({
           customer_name: values.customer_name,
           customer_phone: values.customer_phone,
           notes: values.notes,
-          // payment_type không được hỗ trợ trong luồng tạo chuỗi gốc, sẽ được xử lý sau
+          payment_type: paymentType, // Truyền payment_type của đơn định kỳ tại quầy
         };
 
         // 🚀 LOG CHẶN 2A: In ra payload của Đơn Chuỗi
@@ -246,7 +268,7 @@ export default function Addfield({
         "Chi tiết object lỗi nhận về từ Axios:",
         error.response?.data || error,
       );
-      message.error("Lỗi tạo đơn xử lý!");
+      message.error(error.response?.data?.message || "Lỗi tạo đơn xử lý!");
     } finally {
       setIsSubmitting(false);
     }
@@ -336,7 +358,6 @@ export default function Addfield({
                   checked={isRecurring}
                   onChange={(val) => {
                     setIsRecurring(val);
-                    if (val) setIsManualTime(true);
                   }}
                 />
               </div>
@@ -370,7 +391,6 @@ export default function Addfield({
                 <Switch
                   checked={isManualTime}
                   onChange={setIsManualTime}
-                  disabled={isRecurring}
                 />
               </div>
 
@@ -391,6 +411,33 @@ export default function Addfield({
                     minuteStep={15}
                     className="w-full h-11 rounded-xl"
                     placeholder="Chọn giờ kết thúc..."
+                    disabledTime={() => {
+                      const startHour = startTimeStr ? parseInt(startTimeStr.split(":")[0]) : 4;
+                      const startMinute = startTimeStr ? parseInt(startTimeStr.split(":")[1]) : 0;
+                      return {
+                        disabledHours: () => {
+                          const hours = [0, 1, 2, 3, 4];
+                          for (let i = 5; i < 24; i++) {
+                            if (i < startHour) hours.push(i);
+                          }
+                          return [...new Set(hours)];
+                        },
+                        disabledMinutes: (selectedHour) => {
+                          const minutes = [];
+                          if (selectedHour === startHour) {
+                            for (let i = 0; i <= startMinute; i++) {
+                              minutes.push(i);
+                            }
+                          }
+                          if (selectedHour === 23) {
+                            for (let i = 31; i < 60; i++) {
+                              minutes.push(i);
+                            }
+                          }
+                          return [...new Set(minutes)];
+                        },
+                      };
+                    }}
                   />
                 </Form.Item>
               )}
@@ -472,7 +519,6 @@ export default function Addfield({
                       value={paymentType}
                       onChange={(e) => setPaymentType(e.target.value)}
                       className="w-full flex"
-                      disabled={isToday}
                     >
                       <Radio.Button
                         value="full"
@@ -483,14 +529,14 @@ export default function Addfield({
                       <Radio.Button
                         value="deposit"
                         className="flex-1 text-center font-bold text-xs text-red-500"
+                        disabled={hoursDiff < 24}
                       >
                         Đặt cọc (30%)
                       </Radio.Button>
                     </Radio.Group>
-                    {isToday && (
+                    {hoursDiff < 24 && (
                       <Text className="text-[9px] text-orange-500 italic block mt-1">
-                        * Khách vãng lai đá trong ngày bắt buộc thanh toán đủ
-                        100%
+                        * Ca đá bắt đầu trong vòng 24h tới bắt buộc thanh toán đủ 100%
                       </Text>
                     )}
                   </div>

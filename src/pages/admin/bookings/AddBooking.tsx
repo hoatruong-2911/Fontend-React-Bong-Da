@@ -207,7 +207,7 @@ export default function AddBooking() {
 
     const [slotH, slotM] = slotStart.split(":").map(Number);
     const slotTotalMinutes = slotH * 60 + slotM;
-    const slotEndMinutes = slotTotalMinutes + 90;
+    const slotEndMinutes = slotTotalMinutes + 30; // Mỗi ô lưới đại diện 30 phút
 
     const booking = bookings.find((b: any) => {
       const [startH, startM] = b.start_time.split(":").map(Number);
@@ -217,6 +217,9 @@ export default function AddBooking() {
       let endTotal = endH * 60 + endM;
       if (endH === 23 && endM >= 59) {
         endTotal = 24 * 60;
+      } else if (endTotal < startTotal) {
+        // Hỗ trợ trường hợp ca đá xuyên đêm (qua ngày hôm sau)
+        endTotal += 24 * 60;
       }
 
       return slotTotalMinutes < endTotal && slotEndMinutes > startTotal;
@@ -234,6 +237,15 @@ export default function AddBooking() {
         type: "booked",
         label: "ĐÃ ĐẶT",
         color: "#f59e0b",
+        disabled: true,
+      };
+    }
+
+    if (slotStart === "23:00" || slotStart === "23:30") {
+      return {
+        type: "available",
+        label: "TRỐNG",
+        color: "#10b981",
         disabled: true,
       };
     }
@@ -291,11 +303,17 @@ export default function AddBooking() {
       endTimeStr = manualTime.end;
     } else {
       if (selectedTime) {
-        durationInHours = 1.5;
-        startTimeStr = selectedTime;
-        endTimeStr = dayjs(`2000-01-01 ${selectedTime}`)
-          .add(90, "minute")
-          .format("HH:mm");
+        if (selectedTime === "22:30") {
+          durationInHours = 1.0;
+          startTimeStr = selectedTime;
+          endTimeStr = "23:30";
+        } else {
+          durationInHours = 1.5;
+          startTimeStr = selectedTime;
+          endTimeStr = dayjs(`2000-01-01 ${selectedTime}`)
+            .add(90, "minute")
+            .format("HH:mm");
+        }
       }
     }
 
@@ -398,6 +416,14 @@ export default function AddBooking() {
       }
       if ((isManualTime || isRecurring) && pricing.durationInHours < 1) {
         message.warning("Thời gian đặt sân tự chọn phải từ 1 tiếng trở lên!");
+        return;
+      }
+
+      const startHour = pricing.startTimeStr;
+      const endHour = pricing.endTimeStr;
+
+      if (startHour < "04:00" || startHour > "23:30" || endHour < "04:00" || endHour > "23:30" || endHour <= startHour) {
+        message.error("Khung giờ đặt sân không hợp lệ. Sân chỉ hoạt động từ 04:00 đến 23:30.");
         return;
       }
 
@@ -648,6 +674,24 @@ export default function AddBooking() {
                         size="large"
                         className="w-full h-12 rounded-xl"
                         value={dayjs(manualTime.start, "HH:mm")}
+                        disabledTime={() => ({
+                          disabledHours: () => {
+                            const hours = [0, 1, 2, 3, 23];
+                            if (date?.isSame(dayjs(), "day")) {
+                              for (let i = 4; i < dayjs().hour(); i++) {
+                                hours.push(i);
+                              }
+                            }
+                            return hours;
+                          },
+                          disabledMinutes: (h) =>
+                            date?.isSame(dayjs(), "day") && h === dayjs().hour()
+                              ? Array.from(
+                                  { length: dayjs().minute() },
+                                  (_, i) => i,
+                                )
+                              : [],
+                        })}
                         onChange={(t) =>
                           setManualTime({
                             ...manualTime,
@@ -666,6 +710,45 @@ export default function AddBooking() {
                         size="large"
                         className="w-full h-12 rounded-xl"
                         value={dayjs(manualTime.end, "HH:mm")}
+                        disabledTime={() => {
+                          const startTime = dayjs(manualTime.start, "HH:mm");
+                          return {
+                            disabledHours: () => {
+                              const hours = [0, 1, 2, 3, 4];
+                              for (let i = 5; i < 24; i++) {
+                                if (
+                                  date?.isSame(dayjs(), "day") &&
+                                  i < dayjs().hour()
+                                )
+                                  hours.push(i);
+                                if (i < startTime.hour()) hours.push(i);
+                              }
+                              return [...new Set(hours)];
+                            },
+                            disabledMinutes: (selectedHour) => {
+                              const minutes = [];
+                              if (selectedHour === startTime.hour()) {
+                                for (let i = 0; i <= startTime.minute(); i++) {
+                                  minutes.push(i);
+                                }
+                              }
+                              if (selectedHour === 23) {
+                                for (let i = 31; i < 60; i++) {
+                                  minutes.push(i);
+                                }
+                              }
+                              if (
+                                date?.isSame(dayjs(), "day") &&
+                                selectedHour === dayjs().hour()
+                              ) {
+                                for (let i = 0; i < dayjs().minute(); i++) {
+                                  minutes.push(i);
+                                }
+                              }
+                              return [...new Set(minutes)];
+                            },
+                          };
+                        }}
                         onChange={(t) =>
                           setManualTime({
                             ...manualTime,

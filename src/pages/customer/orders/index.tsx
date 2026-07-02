@@ -197,8 +197,8 @@ export default function CustomerOrders() {
             Chi tiết
           </Button>
 
-          {/* 🛑 NÚT HỦY ĐƠN: Chỉ hiện khi đơn là 'pending' (Chờ xác nhận) hoặc 'confirmed' (Đã xác nhận) */}
-          {["pending", "confirmed"].includes(record.status) && (
+          {/* 🛑 NÚT HỦY ĐƠN: Chỉ hiện khi đơn là 'pending' (Chờ xác nhận) */}
+          {record.status === "pending" && (
             <Popconfirm
               title="Bạn muốn hủy đơn hàng này?"
               description="Sản phẩm sẽ được hoàn về kho, bạn chắc chứ?"

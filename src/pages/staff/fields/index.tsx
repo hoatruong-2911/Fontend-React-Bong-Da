@@ -37,6 +37,7 @@ interface SlotStatus {
   type: "available" | "playing" | "booked" | "expired";
   label: string;
   color: string;
+  disabled?: boolean;
 }
 
 export default function StaffFields() {
@@ -80,7 +81,7 @@ export default function StaffFields() {
 
     const [slotH, slotM] = slotStart.split(":").map(Number);
     const slotTotalMinutes = slotH * 60 + slotM;
-    const slotEndMinutes = slotTotalMinutes + 90;
+    const slotEndMinutes = slotTotalMinutes + 30; // Mỗi ô lưới đại diện 30 phút
 
     const booking = bookings.find((b) => {
       if (b.field_id !== fieldId) return false;
@@ -93,13 +94,20 @@ export default function StaffFields() {
 
       if (endH === 23 && endM >= 59) {
         endTotal = 24 * 60;
+      } else if (endTotal < startTotal) {
+        // Hỗ trợ trường hợp ca đá xuyên đêm (qua ngày hôm sau)
+        endTotal += 24 * 60;
       }
 
       return slotTotalMinutes < endTotal && slotEndMinutes > startTotal;
     });
 
-    if (!booking)
+    if (!booking) {
+      if (slotStart === "23:00" || slotStart === "23:30") {
+        return { type: "available", label: "TRỐNG", color: "#10b981", disabled: true };
+      }
       return { type: "available", label: "TRỐNG", color: "#10b981" };
+    }
     if (booking.status === "playing")
       return { type: "playing", label: "ĐANG ĐÁ", color: "#ef4444" };
     return { type: "booked", label: "ĐÃ ĐẶT", color: "#f59e0b" };
@@ -146,6 +154,10 @@ export default function StaffFields() {
     }
 
     if (status.type === "available") {
+      if (status.disabled) {
+        message.warning("Khung giờ bắt đầu từ 23:00 trở đi không thể đặt sân.");
+        return;
+      }
       // Gán đối tượng thông tin sân thật vào State để đẩy sang Modal con
       setCurrentSelectedField(field);
 
@@ -289,19 +301,19 @@ export default function StaffFields() {
                         key={slot}
                         onClick={() => handleSlotClick(field, slot)}
                         className={`h-14 rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95 shadow-sm text-center select-none
-                          ${status.type === "available" ? "bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 border-dashed" : "text-white"}
+                          ${status.type === "available" ? (status.disabled ? "bg-slate-100/70 border border-slate-200 border-dashed opacity-60 cursor-not-allowed" : "bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 border-dashed") : "text-white"}
                           ${status.type === "playing" ? "bg-gradient-to-br from-red-500 to-rose-600 font-bold" : ""}
                           ${status.type === "booked" ? "bg-gradient-to-br from-orange-400 to-amber-500 font-bold" : ""}
                           ${status.type === "expired" ? "bg-slate-100 cursor-not-allowed border-none opacity-40 grayscale pointer-events-none" : ""}
                         `}
                       >
                         <span
-                          className={`text-[9px] font-black italic tracking-tight uppercase ${status.type === "available" ? "text-emerald-600" : status.type === "expired" ? "text-slate-400" : "text-white"}`}
+                          className={`text-[9px] font-black italic tracking-tight uppercase ${status.type === "available" ? (status.disabled ? "text-slate-400" : "text-emerald-600") : status.type === "expired" ? "text-slate-400" : "text-white"}`}
                         >
                           {status.label}
                         </span>
                         {status.type === "available" && (
-                          <Text className="text-[8px] text-emerald-400 font-black mt-0.5">
+                          <Text className={`text-[8px] font-black mt-0.5 ${status.disabled ? "text-slate-400" : "text-emerald-400"}`}>
                             {field.price / 1000}K
                           </Text>
                         )}

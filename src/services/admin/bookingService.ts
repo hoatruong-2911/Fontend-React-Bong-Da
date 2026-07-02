@@ -226,13 +226,18 @@ const adminBookingService = {
   // 6. Cập nhật trạng thái nhanh (PATCH)
   updateStatus: async (
     id: number | string,
-    status: string,
+    status?: string | null,
+    payment_status?: string | null,
   ): Promise<ApiResponse<Booking>> => {
-    console.log(`[Service] >>> Đổi trạng thái ID: ${id} sang: ${status}`);
+    console.log(`[Service] >>> Đổi trạng thái ID: ${id} sang: ${status}, payment_status: ${payment_status}`);
     try {
+      const data: any = {};
+      if (status !== undefined) data.status = status;
+      if (payment_status !== undefined) data.payment_status = payment_status;
+
       const response = await api.patch<ApiResponse<Booking>>(
         `/bookings/${id}/status`,
-        { status },
+        data,
       );
       console.log("[Service] <<< Kết quả đổi trạng thái:", response.data);
       return response.data;
@@ -280,6 +285,17 @@ const adminBookingService = {
       return response.data;
     } catch (error: unknown) {
       console.error("[Admin Service] ❌ Lỗi confirmDeposit:", error);
+      throw error;
+    }
+  },
+
+  bulkDeleteBookings: async (ids: any[]): Promise<ApiResponse<null>> => {
+    console.log("[Service] >>> Yêu cầu xóa hàng loạt các Booking:", ids);
+    try {
+      const response = await api.post<ApiResponse<null>>("/bookings/bulk-delete", { ids });
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Service] ❌ Lỗi bulkDeleteBookings:", error);
       throw error;
     }
   },

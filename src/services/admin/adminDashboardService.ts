@@ -81,6 +81,14 @@ export interface TopCustomer {
   totalSpent: number; // Tổng chi tiêu
 }
 
+export interface FieldRevenueData {
+  field_id: number;
+  field_name: string;
+  total_bookings: number;
+  total_duration: number;
+  revenue: number;
+}
+
 // --- INTERFACE TỔNG CHO REVENUE REPORT ---
 export interface RevenueReportResponse {
   success: boolean;
@@ -91,6 +99,7 @@ export interface RevenueReportResponse {
   categoryData: CategoryRevenueData[];
   topProducts: TopProduct[];
   topCustomers: TopCustomer[];
+  fieldRevenueData?: FieldRevenueData[];
 }
 
 const adminDashboardService = {

@@ -166,6 +166,20 @@ export default function EditBooking() {
 
   const onFinish = async (values: any) => {
     if (!pricing) return;
+
+    const startStr = values.time_range[0].format("HH:mm");
+    const endStr = values.time_range[1].format("HH:mm");
+
+    if (startStr < "04:00" || startStr > "23:30" || endStr < "04:00" || endStr > "23:30" || endStr <= startStr) {
+      message.error("Khung giờ đặt sân không hợp lệ. Sân chỉ hoạt động từ 04:00 đến 23:30.");
+      return;
+    }
+
+    if (pricing.durationHours < 1) {
+      message.warning("Thời gian đặt sân phải từ 1 tiếng trở lên!");
+      return;
+    }
+
     try {
       setBtnLoading(true);
       const selectedDateStr = values.booking_date.format("YYYY-MM-DD");
@@ -331,6 +345,23 @@ export default function EditBooking() {
                         format="HH:mm"
                         className="w-full h-12 rounded-xl"
                         minuteStep={15}
+                        disabledTime={(d, type) => {
+                          if (type === "start") {
+                            return {
+                              disabledHours: () => [0, 1, 2, 3, 23],
+                              disabledMinutes: () => [],
+                            };
+                          }
+                          return {
+                            disabledHours: () => [0, 1, 2, 3, 4],
+                            disabledMinutes: (h) => {
+                              if (h === 23) {
+                                return Array.from({ length: 29 }, (_, i) => i + 31); // 31 to 59
+                              }
+                              return [];
+                            },
+                          };
+                        }}
                       />
                     </Form.Item>
                   </Col>

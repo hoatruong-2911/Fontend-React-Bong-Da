@@ -35,6 +35,7 @@ import adminDashboardService, {
   TopProduct,
   TopCustomer,
   CategoryRevenueData,
+  FieldRevenueData,
 } from "@/services/admin/adminDashboardService";
 
 const { Title, Text } = Typography;
@@ -132,6 +133,48 @@ export default function AdminRevenue() {
       title: "CHI TIÊU",
       dataIndex: "totalSpent",
       key: "totalSpent",
+      render: (val: number) => (
+        <Text className="font-black text-emerald-600">
+          {val.toLocaleString()}đ
+        </Text>
+      ),
+    },
+  ];
+
+  // Định nghĩa cột cho bảng Doanh thu từng sân
+  const fieldColumns = [
+    {
+      title: "#",
+      key: "index",
+      width: 50,
+      render: (_: unknown, __: FieldRevenueData, index: number) => index + 1,
+    },
+    {
+      title: "SÂN BÓNG",
+      dataIndex: "field_name",
+      key: "field_name",
+      render: (text: string) => <Text className="font-bold">{text}</Text>,
+    },
+    {
+      title: "LƯỢT ĐẶT",
+      dataIndex: "total_bookings",
+      key: "total_bookings",
+      render: (val: number) => (
+        <Text className="font-semibold text-blue-600">{val} lượt</Text>
+      ),
+    },
+    {
+      title: "THỜI GIAN ĐÁ",
+      dataIndex: "total_duration",
+      key: "total_duration",
+      render: (val: number) => (
+        <Text className="font-black text-purple-600">{val} phút</Text>
+      ),
+    },
+    {
+      title: "DOANH THU SÂN",
+      dataIndex: "revenue",
+      key: "revenue",
       render: (val: number) => (
         <Text className="font-black text-emerald-600">
           {val.toLocaleString()}đ
@@ -320,6 +363,79 @@ export default function AdminRevenue() {
                 </div>
               ))}
             </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Field Revenue Section */}
+      <Row gutter={[20, 20]}>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <span className="font-black italic uppercase text-indigo-700">
+                Doanh thu chi tiết từng sân
+              </span>
+            }
+            className="rounded-[2.5rem] border-none shadow-2xl bg-white/95 overflow-hidden"
+          >
+            <Table
+              columns={fieldColumns}
+              dataSource={data.fieldRevenueData || []}
+              rowKey="field_id"
+              pagination={false}
+              size="middle"
+              className="custom-table-platinum"
+            />
+          </Card>
+        </Col>
+        <Col xs={24} lg={12}>
+          <Card
+            title={
+              <span className="font-black italic uppercase text-purple-700">
+                Biểu đồ doanh thu từng sân
+              </span>
+            }
+            className="rounded-[2.5rem] border-none shadow-2xl bg-white/95"
+          >
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={data.fieldRevenueData || []}>
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  vertical={false}
+                  stroke="#f1f5f9"
+                />
+                <XAxis
+                  dataKey="field_name"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#94a3b8", fontWeight: 700 }}
+                />
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: "#94a3b8", fontWeight: 700 }}
+                />
+                <Tooltip
+                  cursor={{ fill: "#f8fafc" }}
+                  formatter={(val: number) => [
+                    val.toLocaleString() + "đ",
+                    "Doanh thu",
+                  ]}
+                />
+                <Bar
+                  dataKey="revenue"
+                  fill="#6366f1"
+                  name="Doanh thu"
+                  radius={[10, 10, 0, 0]}
+                  barSize={40}
+                >
+                  {(data.fieldRevenueData || []).map((entry, index) => {
+                    const colors = ["#6366f1", "#8b5cf6", "#3b82f6", "#10b981", "#f59e0b"];
+                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           </Card>
         </Col>
       </Row>

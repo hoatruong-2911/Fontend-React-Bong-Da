@@ -29,7 +29,9 @@ export interface Booking {
     | "rejected";
   total_price: number; // ✅ Đổi từ total_amount thành total_price để khớp UI
   total_amount?: number;
+
   amount_paid?: number;
+  deposit_amount?: number;
   payment_type?: "full" | "deposit";
   payment_status?: string;
   notes?: string;
@@ -61,9 +63,20 @@ export interface BookingListResponse {
 // Staff Booking API
 const staffBookingService = {
   // ✅ CẬP NHẬT: Thêm kiểu trả về cho danh sách (Paginated hoặc Array)
+  // getBookings: async (
+  //   filters?: BookingFilters,
+  // ): Promise<ApiResponse<{ data: Booking[] } | Booking[]>> => {
+  //   const response = await api.get("/bookings", { params: filters });
+  //   return response.data;
+  // },
+  // 🚀 CẬP NHẬT CHÍNH XÁC: Định nghĩa rõ Object phân trang trả về từ Laravel Pagination để sạch any
   getBookings: async (
     filters?: BookingFilters,
-  ): Promise<ApiResponse<{ data: Booking[] } | Booking[]>> => {
+  ): Promise<
+    ApiResponse<
+      { data: Booking[]; total: number; current_page: number } | Booking[]
+    >
+  > => {
     const response = await api.get("/bookings", { params: filters });
     return response.data;
   },
@@ -93,12 +106,17 @@ const staffBookingService = {
   // ✅ CẬP NHẬT: Thêm kiểu trả về cho status
   updateStatus: async (
     id: number | string,
-    status: "playing" | "completed" | "cancelled" | "approved",
+    status?: string | null,
+    payment_status?: string | null,
   ): Promise<ApiResponse<Booking>> => {
     try {
+      const data: any = {};
+      if (status !== undefined) data.status = status;
+      if (payment_status !== undefined) data.payment_status = payment_status;
+
       const response = await api.patch<ApiResponse<Booking>>(
         `/bookings/${id}/status`,
-        { status },
+        data,
       );
       return response.data;
     } catch (error: unknown) {
@@ -142,6 +160,20 @@ const staffBookingService = {
       return response.data;
     } catch (error: unknown) {
       console.error("[Staff Service] ❌ Lỗi createRecurringBooking:", error);
+      throw error;
+    }
+  },
+
+  confirmDeposit: async (
+    recurringGroupId: string | number,
+  ): Promise<ApiResponse<any>> => {
+    try {
+      const response = await api.post<ApiResponse<any>>(
+        `/bookings/confirm-deposit/${recurringGroupId}`,
+      );
+      return response.data;
+    } catch (error: unknown) {
+      console.error("[Staff Service] ❌ Lỗi confirmDeposit:", error);
       throw error;
     }
   },

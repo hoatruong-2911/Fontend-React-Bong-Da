@@ -132,6 +132,7 @@ export default function BookingPage() {
     groupId: string;
     deposit: number;
   } | null>(null);
+  const [paymentType, setPaymentType] = useState<"deposit" | "full">("deposit");
 
   // Mặc định lấy giờ hiện tại + 15p, và kết thúc sau đó 1 tiếng
   const [manualTime, setManualTime] = useState(() => {
@@ -148,6 +149,21 @@ export default function BookingPage() {
       end: end.format("HH:mm"),
     };
   });
+
+  useEffect(() => {
+    if (isRecurring) {
+      setPaymentType("deposit");
+    } else {
+      const startTimeStr = isManualTime ? manualTime.start : selectedTime;
+      if (startTimeStr && date) {
+        const bookingStart = dayjs(`${date.format("YYYY-MM-DD")} ${startTimeStr}`);
+        const hoursDiff = bookingStart.diff(dayjs(), "hour", true);
+        if (hoursDiff < 24) {
+          setPaymentType("full");
+        }
+      }
+    }
+  }, [isRecurring, isManualTime, manualTime.start, selectedTime, date]);
 
   const [customerInfo, setCustomerInfo] = useState<CustomerInfo>({
     name: "",
@@ -217,7 +233,7 @@ export default function BookingPage() {
 
     const [slotH, slotM] = slotStart.split(":").map(Number);
     const slotTotalMinutes = slotH * 60 + slotM;
-    const slotEndMinutes = slotTotalMinutes + 90; // Giả định mỗi ca cố định là 90 phút
+    const slotEndMinutes = slotTotalMinutes + 30; // Mỗi ô lưới đại diện 30 phút
 
     // 2. Kiểm tra CHẾM CHỖ (Dùng logic Overlap như bên Staff)
     const booking = bookings.find((b: any) => {
@@ -229,6 +245,9 @@ export default function BookingPage() {
       // Xử lý làm tròn nếu CSDL lưu 23:59:59 (khi khách đặt tới 0h00)
       if (endH === 23 && endM >= 59) {
         endTotal = 24 * 60;
+      } else if (endTotal < startTotal) {
+        // Hỗ trợ trường hợp ca đá xuyên đêm (qua ngày hôm sau)
+        endTotal += 24 * 60;
       }
 
       // Công thức chuẩn kiểm tra 2 khoảng thời gian giao nhau: StartA < EndB && EndA > StartB
@@ -251,6 +270,15 @@ export default function BookingPage() {
       };
     }
 
+    if (slotStart === "23:00" || slotStart === "23:30") {
+      return {
+        type: "available",
+        label: "TRỐNG",
+        color: "#10b981",
+        disabled: true,
+      };
+    }
+
     return {
       type: "available",
       label: "SẴN SÀNG",
@@ -265,7 +293,29 @@ export default function BookingPage() {
     let startTimeStr = "";
     let endTimeStr = "";
 
-    // 1. Nếu là ĐẶT CỐ ĐỊNH (ĐỊNH KỲ)
+    // 1. Xác định khung giờ
+    if (isRecurring) {
+      startTimeStr = manualTime.start;
+      endTimeStr = manualTime.end;
+    } else {
+      if (isManualTime) {
+        startTimeStr = manualTime.start;
+        endTimeStr = manualTime.end;
+      } else if (selectedTime) {
+        startTimeStr = selectedTime;
+        endTimeStr = dayjs(`2000-01-01 ${selectedTime}`)
+          .add(90, "minute")
+          .format("HH:mm");
+      }
+    }
+
+    const hoursDiff = (() => {
+      if (!startTimeStr || !date) return 0;
+      const bookingStart = dayjs(`${date.format("YYYY-MM-DD")} ${startTimeStr}`);
+      return bookingStart.diff(dayjs(), "hour", true);
+    })();
+
+    // 2. Nếu là ĐẶT CỐ ĐỊNH (ĐỊNH KỲ)
     if (isRecurring) {
       const start = dayjs(manualTime.start, "HH:mm");
       let end = dayjs(manualTime.end, "HH:mm");
@@ -293,10 +343,11 @@ export default function BookingPage() {
         finalTotal: finalTotal,
         depositRequired: finalTotal * 0.3, // 🚀 Cọc 30% định kỳ
         totalSessions: totalSessions,
+        hoursDiff,
       };
     }
 
-    // 2. Nếu là ĐẶT LẺ
+    // 3. Nếu là ĐẶT LẺ
     if (isManualTime) {
       const start = dayjs(manualTime.start, "HH:mm");
       let end = dayjs(manualTime.end, "HH:mm");
@@ -307,11 +358,17 @@ export default function BookingPage() {
       endTimeStr = manualTime.end;
     } else {
       if (selectedTime) {
-        durationInHours = 1.5;
-        startTimeStr = selectedTime;
-        endTimeStr = dayjs(`2000-01-01 ${selectedTime}`)
-          .add(90, "minute")
-          .format("HH:mm");
+        if (selectedTime === "22:30") {
+          durationInHours = 1.0;
+          startTimeStr = selectedTime;
+          endTimeStr = "23:30";
+        } else {
+          durationInHours = 1.5;
+          startTimeStr = selectedTime;
+          endTimeStr = dayjs(`2000-01-01 ${selectedTime}`)
+            .add(90, "minute")
+            .format("HH:mm");
+        }
       }
     }
 
@@ -322,6 +379,9 @@ export default function BookingPage() {
     const surcharge = isNight ? subTotal * 0.2 : 0;
     const finalTotal = subTotal + surcharge;
 
+    // Bắt buộc trả đủ nếu hoursDiff < 24 hoặc người dùng chọn trả đủ
+    const depositRequired = (hoursDiff < 24 || paymentType === "full") ? finalTotal : finalTotal * 0.3;
+
     return {
       durationInHours,
       startTimeStr,
@@ -329,8 +389,9 @@ export default function BookingPage() {
       subTotal,
       surcharge,
       finalTotal,
-      depositRequired: finalTotal * 0.3, // 🚀 SỬA CHỖ NÀY: Đặt lẻ bây giờ cũng bắt cọc 30% nhé bro!
+      depositRequired: depositRequired,
       totalSessions: 1,
+      hoursDiff,
     };
   }, [
     isManualTime,
@@ -339,6 +400,8 @@ export default function BookingPage() {
     currentField,
     isRecurring,
     recurringMonths,
+    date,
+    paymentType,
   ]);
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -364,6 +427,7 @@ export default function BookingPage() {
       customer_name: customerInfo.name,
       customer_phone: customerInfo.phone,
       notes: customerInfo.note,
+      payment_type: paymentType,
     };
 
     // Gọi API lưu vào DB xong
@@ -375,7 +439,7 @@ export default function BookingPage() {
       deposit: pricingData.depositRequired,
     });
     setShowDepositModal(true);
-    message.success("Giữ chỗ sân lẻ thành công! Vui lòng chuyển khoản cọc.");
+    message.success("Giữ chỗ sân lẻ thành công! Vui lòng chuyển khoản thanh toán.");
   };
 
   const handleRecurringBooking = async (
@@ -392,6 +456,7 @@ export default function BookingPage() {
       customer_name: customerInfo.name,
       customer_phone: customerInfo.phone,
       notes: customerInfo.note,
+      payment_type: paymentType,
     };
     const response =
       await customerBookingService.createRecurringBooking(recurringData);
@@ -419,6 +484,21 @@ export default function BookingPage() {
         return;
       }
 
+      const startHour = pricing.startTimeStr;
+      const endHour = pricing.endTimeStr;
+
+      if (startHour < "04:00" || startHour > "23:30" || endHour < "04:00" || endHour > "23:30" || endHour <= startHour) {
+        message.error("Khung giờ đặt sân không hợp lệ. Sân chỉ hoạt động từ 04:00 đến 23:30.");
+        return;
+      }
+
+      if (isRecurring && pricing.hoursDiff < 24) {
+        message.error(
+          "Không thể đặt chuỗi lịch định kỳ bắt đầu trong vòng 24 giờ tới. Vui lòng chọn ngày bắt đầu xa hơn!"
+        );
+        return;
+      }
+
       setIsSubmitting(true);
       const bookingDateStr = date.format("YYYY-MM-DD");
 
@@ -430,10 +510,17 @@ export default function BookingPage() {
     } catch (error: any) {
       // 🚀 CHỖ CẢI TIẾN: Bắt lỗi khi người dùng chưa nhập thông tin liên hệ
       if (error && error.errorFields) {
-        // 1. Bắn thông báo ngay trên cửa sổ window hiển thị rõ ràng trên cùng
-        message.error(
-          "Bro ơi! Vui lòng nhập đầy đủ Họ tên và Số điện thoại ở Bước 3 nhé!",
-        );
+        // 1. Xác định chính xác trường nào đang thiếu và bắn thông báo toast tương ứng
+        const missingFields = error.errorFields.map((f: any) => f.name[0]);
+        if (missingFields.includes("name") && missingFields.includes("phone")) {
+          message.error("Vui lòng nhập đầy đủ Họ tên và Số điện thoại ở Bước 3!");
+        } else if (missingFields.includes("name")) {
+          message.error("Vui lòng nhập Họ và tên ở Bước 3!");
+        } else if (missingFields.includes("phone")) {
+          const phoneFieldError = error.errorFields.find((f: any) => f.name[0] === "phone");
+          const errMsg = phoneFieldError?.errors[0] || "Vui lòng nhập Số điện thoại ở Bước 3!";
+          message.error(errMsg);
+        }
 
         // 2. Tự động cuộn màn hình mượt mà xuống khu vực thông tin liên hệ để khách điền liền
         const contactSection = document.getElementById("step-contact-info");
@@ -683,7 +770,7 @@ export default function BookingPage() {
                         value={dayjs(manualTime.start, "HH:mm")}
                         disabledTime={() => ({
                           disabledHours: () => {
-                            const hours = [0, 1, 2, 3]; // Chặn từ 0h đến 3h sáng
+                            const hours = [0, 1, 2, 3, 23]; // Chặn từ 0h đến 3h sáng và chặn từ 23h đêm
                             if (date?.isSame(dayjs(), "day")) {
                               for (let i = 4; i < dayjs().hour(); i++) {
                                 hours.push(i);
@@ -721,8 +808,8 @@ export default function BookingPage() {
                           const startTime = dayjs(manualTime.start, "HH:mm");
                           return {
                             disabledHours: () => {
-                              const hours = [1, 2, 3]; // Chặn 1h, 2h, 3h (ĐỂ LẠI 0h00 LÀM MỐC KẾT THÚC)
-                              for (let i = 4; i < 24; i++) {
+                              const hours = [0, 1, 2, 3, 4]; // Chặn từ 0h đến 4h sáng kết thúc
+                              for (let i = 5; i < 24; i++) {
                                 if (
                                   date?.isSame(dayjs(), "day") &&
                                   i < dayjs().hour()
@@ -734,14 +821,14 @@ export default function BookingPage() {
                             },
                             disabledMinutes: (selectedHour) => {
                               const minutes = [];
-                              // Nếu chọn 0h00 thì chỉ cho phép chọn phút 0
-                              if (selectedHour === 0) {
-                                for (let i = 1; i < 60; i++) minutes.push(i);
-                                return minutes;
-                              }
                               if (selectedHour === startTime.hour()) {
                                 for (let i = 0; i <= startTime.minute(); i++) {
                                   minutes.push(i);
+                                }
+                              }
+                              if (selectedHour === 23) {
+                                for (let i = 31; i < 60; i++) {
+                                  minutes.push(i); // Chặn kết thúc sau 23:30
                                 }
                               }
                               // Chặn thêm phút của giờ hiện tại nếu là ngày hôm nay
@@ -784,11 +871,12 @@ export default function BookingPage() {
               )}
             </CustomCard>
 
-            <CustomCard
-              title="Thông tin liên hệ"
-              step={3}
-              description="Để chúng tôi xác nhận đặt sân"
-            >
+            <div id="step-contact-info">
+              <CustomCard
+                title="Thông tin liên hệ"
+                step={3}
+                description="Để chúng tôi xác nhận đặt sân"
+              >
               <Form form={form} layout="vertical">
                 <Form.Item
                   name="name"
@@ -837,6 +925,7 @@ export default function BookingPage() {
                 />
               </Form>
             </CustomCard>
+            </div>
           </Col>
 
           <Col xs={24} lg={8}>
@@ -878,6 +967,45 @@ export default function BookingPage() {
                       : "--:--"}
                   </span>
                 </div>
+                {pricing && (
+                  <div className="space-y-1 my-3">
+                    <span className="text-[10px] font-black text-slate-400 uppercase italic block">
+                      Hạn mức thanh toán:
+                    </span>
+                    {pricing.hoursDiff < 24 ? (
+                      <div className="p-2.5 bg-red-50 border border-dashed border-red-200 rounded-xl text-center">
+                        <span className="text-xs font-black text-red-600 uppercase italic">
+                          💵 Trả đủ 100% (bắt buộc ca sát giờ)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <Button
+                          type={paymentType === "deposit" ? "primary" : "default"}
+                          onClick={() => setPaymentType("deposit")}
+                          className={`w-1/2 rounded-xl font-bold text-xs h-10 transition-all ${
+                            paymentType === "deposit"
+                              ? "bg-green-600 border-green-600 text-white shadow-md shadow-green-100"
+                              : "border-slate-200 text-slate-600 hover:border-green-500"
+                          }`}
+                        >
+                          Đặt cọc (30%)
+                        </Button>
+                        <Button
+                          type={paymentType === "full" ? "primary" : "default"}
+                          onClick={() => setPaymentType("full")}
+                          className={`w-1/2 rounded-xl font-bold text-xs h-10 transition-all ${
+                            paymentType === "full"
+                              ? "bg-green-600 border-green-600 text-white shadow-md shadow-green-100"
+                              : "border-slate-200 text-slate-600 hover:border-green-500"
+                          }`}
+                        >
+                          Trả đủ (100%)
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <Divider className="my-2 border-dashed" />
                 {pricing && (
                   <div className="bg-emerald-50 p-4 rounded-xl text-xs space-y-2 border border-emerald-100 shadow-inner">
@@ -900,7 +1028,10 @@ export default function BookingPage() {
                     {pricing && pricing.depositRequired > 0 && (
                       <div className="flex justify-between text-red-500 font-black uppercase italic mt-2 pt-2 border-t border-dashed border-emerald-200">
                         <span>
-                          <InfoCircleOutlined /> Cần cọc (30%):
+                          <InfoCircleOutlined />{" "}
+                          {paymentType === "full"
+                            ? "Cần trả đủ (100%):"
+                            : "Cần cọc (30%):"}
                         </span>
                         <span>{pricing.depositRequired.toLocaleString()}đ</span>
                       </div>
@@ -920,6 +1051,16 @@ export default function BookingPage() {
                     </div>
                   </div>
                 </div>
+                {pricing && !isRecurring && pricing.hoursDiff < 24 && (
+                  <div className="text-red-500 font-bold text-[10px] uppercase italic text-center animate-pulse py-1">
+                    ⚠️ Ca đá bắt đầu trong vòng 24h tới bắt buộc thanh toán đủ 100%
+                  </div>
+                )}
+                {pricing && isRecurring && pricing.hoursDiff < 24 && (
+                  <div className="text-red-500 font-bold text-[10px] uppercase italic text-center animate-pulse py-1">
+                    ⚠️ Không thể đặt lịch định kỳ bắt đầu trong vòng 24h tới
+                  </div>
+                )}
                 <Button
                   type="primary"
                   size="large"
@@ -928,6 +1069,7 @@ export default function BookingPage() {
                   onClick={handleSubmit}
                   disabled={
                     !pricing ||
+                    (isRecurring && pricing.hoursDiff < 24) ||
                     ((isManualTime || isRecurring) &&
                       pricing.durationInHours < 1)
                   }
@@ -945,7 +1087,9 @@ export default function BookingPage() {
       <Modal
         title={
           <div className="text-center font-black italic uppercase text-slate-800 text-lg border-b pb-2">
-            Thanh Toán Cọc Giữ Chỗ (30%)
+            {paymentType === "full"
+              ? "Thanh Toán Đủ Tiền Sân (100%)"
+              : "Thanh Toán Cọc Giữ Chỗ (30%)"}
           </div>
         }
         open={showDepositModal}
@@ -970,7 +1114,9 @@ export default function BookingPage() {
               status="processing"
               text={
                 <span className="font-bold text-emerald-600 text-xs uppercase">
-                  Hệ thống đang giữ chỗ tạm thời cho chuỗi đơn của bạn
+                  {paymentType === "full"
+                    ? "Hệ thống đang giữ chỗ tạm thời cho ca đá của bạn"
+                    : "Hệ thống đang giữ chỗ tạm thời cho chuỗi đơn của bạn"}
                 </span>
               }
             />
@@ -980,8 +1126,8 @@ export default function BookingPage() {
           {modalDetails && (
             <div className="flex justify-center my-2 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
               <img
-                src={`https://img.vietqr.io/image/MB-0372786250-compact2.png?amount=${modalDetails.deposit}&addInfo=${encodeURIComponent(`COC SAN ${modalDetails.groupId}`)}&accountName=${encodeURIComponent("TRUONG THANH HOA")}`}
-                alt="Mã QR Chuyển Khoản Cọc Sân"
+                src={`https://img.vietqr.io/image/MB-0372786250-compact2.png?amount=${modalDetails.deposit}&addInfo=${encodeURIComponent(paymentType === "full" ? `TRA DU ${modalDetails.groupId}` : `COC SAN ${modalDetails.groupId}`)}&accountName=${encodeURIComponent("TRUONG THANH HOA")}`}
+                alt={paymentType === "full" ? "Mã QR Chuyển Khoản Đủ Tiền Sân" : "Mã QR Chuyển Khoản Cọc Sân"}
                 className="w-56 h-56 object-contain border-2 border-dashed border-emerald-400 p-1.5 rounded-xl"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
@@ -1014,7 +1160,7 @@ export default function BookingPage() {
               </span>
             </p>
             <p>
-              💰 Số tiền cần cọc:{" "}
+              💰 {paymentType === "full" ? "Số tiền thanh toán:" : "Số tiền cần cọc:"}{" "}
               <span className="font-black text-red-500 text-base">
                 {(modalDetails?.deposit || 0).toLocaleString()}đ
               </span>
@@ -1023,7 +1169,7 @@ export default function BookingPage() {
             <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-800 font-bold mt-2">
               📌 Nội dung chuyển khoản bắt buộc (chính xác từng chữ): <br />
               <span className="text-xs font-black text-slate-900 bg-white px-2 py-1.5 rounded border border-orange-300 inline-block mt-1 select-all tracking-wider">
-                COC SAN {modalDetails?.groupId}
+                {paymentType === "full" ? "TRA DU" : "COC SAN"} {modalDetails?.groupId}
               </span>
             </div>
           </div>

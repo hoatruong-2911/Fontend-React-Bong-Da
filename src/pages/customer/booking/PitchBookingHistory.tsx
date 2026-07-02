@@ -155,7 +155,7 @@ export default function PitchBookingHistory() {
             </Button>
           </Tooltip>
 
-          {["pending", "approved"].includes(record.status) && (
+          {record.status === "pending" && (
             <Popconfirm
               title="Bạn muốn hủy lượt đặt này?"
               onConfirm={() => handleCancel(record.id)}

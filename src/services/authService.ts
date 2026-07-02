@@ -23,6 +23,18 @@ export interface UserProfile {
   avatar?: string; // Tên file ảnh lưu trong Backend
 }
 
+export interface CustomerStats {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  total_bookings: number;
+  total_spent: number;
+  last_booking: string | null;
+  status: string;
+  is_vip: boolean | number;
+}
+
 /**
  * 🛑 CẬP NHẬT: Mở rộng Interface User
  * Thêm trường 'profile' để tránh lỗi "Property 'profile' does not exist"
@@ -36,6 +48,7 @@ export interface User {
   avatar?: string;
   created_at: string;
   profile?: UserProfile; // ⬅️ Thêm dòng này để dập lỗi đỏ
+  customer_stats?: CustomerStats | null;
 }
 
 export interface AuthResponse {

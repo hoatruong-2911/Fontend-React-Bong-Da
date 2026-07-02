@@ -28,6 +28,8 @@ import {
   StopOutlined,
   DeleteOutlined,
   DollarCircleOutlined,
+  ReloadOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 import adminBookingService, { Booking } from "@/services/admin/bookingService";
 import { authService } from "@/services";
@@ -154,9 +156,40 @@ export default function BookingsManagement() {
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalBookings, setTotalBookings] = useState<number>(0);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [globalStats, setGlobalStats] = useState({
+    total: 0,
+    pending: 0,
+    approved: 0,
+    playing: 0,
+    completed: 0,
+    cancelled: 0,
+    revenue: 0,
+  });
 
   const currentUser = authService.getStoredUser();
   const isAdmin = currentUser?.role === "admin";
+
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys: React.Key[]) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+    },
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      setLoading(true);
+      await adminBookingService.bulkDeleteBookings(selectedRowKeys);
+      message.success("Đã xóa hàng loạt các đơn được chọn thành công!");
+      setSelectedRowKeys([]); // Reset các dòng đã chọn
+      fetchBookings(currentPage);
+    } catch (error) {
+      message.error("Lỗi khi xóa hàng loạt các đơn đặt sân.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchBookings = async (page = 1, currentStatus = statusFilter) => {
     try {
@@ -175,6 +208,10 @@ export default function BookingsManagement() {
       setBookings(resultList);
       setTotalBookings(totalCount);
       setCurrentPage(page);
+
+      if (response && (response as any).stats) {
+        setGlobalStats((response as any).stats);
+      }
     } catch (error) {
       message.error("Không thể tải danh sách đặt sân");
     } finally {
@@ -185,16 +222,6 @@ export default function BookingsManagement() {
   useEffect(() => {
     fetchBookings(1, statusFilter);
   }, [statusFilter]);
-
-  const stats = useMemo(
-    () => ({
-      total: totalBookings,
-      pending: bookings.filter((b) => b.status === "pending").length,
-      approved: bookings.filter((b) => b.status === "approved").length,
-      playing: bookings.filter((b) => b.status === "playing").length,
-    }),
-    [bookings, totalBookings],
-  );
 
   // 🚀 ĐÃ SỬA CHUẨN XỊN: Gọi đúng hàm updateStatus gốc, gửi PATCH chuẩn chỉ lên hàm changeStatus của Backend
   const handleUpdateStatus = async (id: number, status: string) => {
@@ -293,18 +320,25 @@ export default function BookingsManagement() {
       title: "Chi phí & Tiền cọc",
       key: "money_flow",
       render: (_: any, record: Booking) => {
-        const deposit = record.deposit_amount || 0;
+        const total = Number(record.total_amount || 0);
+        const deposit = Number(record.deposit_amount || 0);
+        const paymentStatus = (record.payment_status || "").toLowerCase().trim();
         return (
           <div className="space-y-0.5 text-xs">
             <div>
               Tổng:{" "}
               <span className="text-green-600 font-bold">
-                {formatCurrency(record.total_amount)}
+                {formatCurrency(total)}
               </span>
             </div>
             {deposit > 0 && (
               <div className="text-red-500 font-medium">
                 Cọc 30%: <span>{formatCurrency(deposit)}</span>
+              </div>
+            )}
+            {paymentStatus === "partial_paid" && (
+              <div className="text-red-500 font-bold italic animate-pulse">
+                Chưa nhận 70% còn lại: {formatCurrency(total - deposit)}
               </div>
             )}
           </div>
@@ -398,7 +432,29 @@ export default function BookingsManagement() {
             </>
           )}
 
-          {record.status === "approved" && (
+          {record.status === "approved" && record.payment_status === "partial_paid" && (
+            <Button
+              disabled={!isAdmin}
+              size="small"
+              className="bg-teal-600 border-teal-600 text-white font-bold hover:bg-teal-700"
+              onClick={async () => {
+                try {
+                  setLoading(true);
+                  await adminBookingService.updateStatus(record.id, undefined, "fully_paid");
+                  message.success("Xác nhận nhận đủ 70% còn lại thành công!");
+                  fetchBookings(currentPage);
+                } catch (e) {
+                  message.error("Lỗi xác nhận thanh toán!");
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            >
+              Nhận đủ 70%
+            </Button>
+          )}
+
+          {record.status === "approved" && record.payment_status !== "partial_paid" && (
             <Button
               disabled={!isAdmin}
               size="small"
@@ -473,46 +529,32 @@ export default function BookingsManagement() {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen space-y-6">
-      <Row gutter={[16, 16]}>
-        <Col xs={12} sm={6}>
-          <Card size="small" bordered={false} className="shadow-sm">
-            <Statistic
-              title="Tổng đơn"
-              value={stats.total}
-              valueStyle={{ color: "#1890ff", fontWeight: 800 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" bordered={false} className="shadow-sm">
-            <Statistic
-              title="Đang chờ"
-              value={stats.pending}
-              prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: "#faad14", fontWeight: 800 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" bordered={false} className="shadow-sm">
-            <Statistic
-              title="Đã duyệt"
-              value={stats.approved}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: "#1890ff", fontWeight: 800 }}
-            />
-          </Card>
-        </Col>
-        <Col xs={12} sm={6}>
-          <Card size="small" bordered={false} className="shadow-sm">
-            <Statistic
-              title="Đang đá"
-              value={stats.playing}
-              prefix={<PlayCircleOutlined />}
-              valueStyle={{ color: "#52c41a", fontWeight: 800 }}
-            />
-          </Card>
-        </Col>
+      <Row gutter={[12, 12]} className="flex-wrap">
+        {[
+          { label: "Tổng đơn", val: globalStats.total, color: "#1890ff", icon: <CalendarOutlined /> },
+          { label: "Chờ duyệt", val: globalStats.pending, color: "#faad14", icon: <ClockCircleOutlined /> },
+          { label: "Đã duyệt", val: globalStats.approved, color: "#3498db", icon: <CheckCircleOutlined /> },
+          { label: "Đang đá", val: globalStats.playing, color: "#2ecc71", icon: <PlayCircleOutlined /> },
+          { label: "Hoàn thành", val: globalStats.completed, color: "#1abc9c", icon: <CheckCircleOutlined /> },
+          { label: "Đã hủy", val: globalStats.cancelled, color: "#e74c3c", icon: <CloseCircleOutlined /> },
+          { label: "Doanh thu", val: globalStats.revenue, color: "#27ae60", icon: <DollarCircleOutlined />, isCurrency: true },
+        ].map((item, i) => (
+          <Col xs={12} sm={8} md={6} lg={3} xl={3} key={i} className="flex-fill">
+            <Card size="small" bordered={false} className="shadow-sm rounded-xl bg-white h-full">
+              <Statistic
+                title={<span className="font-bold text-gray-400 text-xs">{item.label}</span>}
+                value={item.val}
+                prefix={item.icon}
+                valueStyle={{
+                  color: item.color,
+                  fontWeight: 800,
+                  fontSize: item.isCurrency ? "15px" : "18px",
+                }}
+                formatter={item.isCurrency ? (val) => formatCurrency(Number(val)) : undefined}
+              />
+            </Card>
+          </Col>
+        ))}
       </Row>
 
       <Card className="border-0 shadow-md" style={{ borderRadius: 12 }}>
@@ -545,6 +587,27 @@ export default function BookingsManagement() {
             </Select>
           </Space>
           <Space>
+            {selectedRowKeys.length > 0 && (
+              <Popconfirm
+                title={`Xóa vĩnh viễn ${selectedRowKeys.length} đơn đặt sân đã chọn?`}
+                description="Hành động này không thể hoàn tác, bro chắc chứ?"
+                onConfirm={handleBulkDelete}
+                okText="Xóa tất cả"
+                cancelText="Hủy"
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  disabled={!isAdmin}
+                  type="primary"
+                  danger
+                  icon={<DeleteOutlined />}
+                  size="large"
+                  style={{ borderRadius: 8 }}
+                >
+                  Xóa hàng loạt ({selectedRowKeys.length})
+                </Button>
+              </Popconfirm>
+            )}
             <Button
               icon={<ExportOutlined />}
               size="large"
@@ -565,10 +628,19 @@ export default function BookingsManagement() {
             >
               Tạo đặt sân
             </Button>
+            <Button
+              icon={<ReloadOutlined spin={loading} />}
+              onClick={() => fetchBookings(currentPage)}
+              size="large"
+              style={{ borderRadius: 8 }}
+            >
+              Làm mới
+            </Button>
           </Space>
         </div>
 
         <Table
+          rowSelection={rowSelection}
           dataSource={filteredBookings}
           columns={columns}
           rowKey="id"
