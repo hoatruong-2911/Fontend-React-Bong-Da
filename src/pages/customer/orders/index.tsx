@@ -159,6 +159,62 @@ export default function CustomerOrders() {
       ),
     },
     {
+      title: "Hẹn giờ lấy",
+      dataIndex: "pickup_time",
+      key: "pickup_time",
+      render: (time: string, record: OrderRecord) => {
+        if (!time) {
+          return <Text type="secondary" className="text-[10px] italic">Không hẹn</Text>;
+        }
+
+        const pickupDay = dayjs(time);
+        const now = dayjs();
+        const cancelTime = pickupDay.subtract(1, "hour");
+        const diffMinutes = cancelTime.diff(now, "minute");
+
+        const formattedTime = pickupDay.format("HH:mm DD/MM");
+
+        if (!["pending", "confirmed"].includes(record.status)) {
+          return (
+            <Space direction="vertical" size={0}>
+              <span className="font-bold text-slate-700 text-xs">⏰ {formattedTime}</span>
+            </Space>
+          );
+        }
+
+        if (diffMinutes <= 0) {
+          return (
+            <Space direction="vertical" size={0}>
+              <span className="font-bold text-red-500 text-xs">⏰ {formattedTime}</span>
+              <Tag color="error" className="m-0 text-[9px] font-black animate-pulse border-none">
+                ⚠️ QUÁ HẠN (SẼ HỦY)
+              </Tag>
+            </Space>
+          );
+        }
+
+        if (diffMinutes <= 180) {
+          const hoursLeft = Math.floor(diffMinutes / 60);
+          const minsLeft = diffMinutes % 60;
+          const leftStr = hoursLeft > 0 ? `${hoursLeft}h${minsLeft}m` : `${minsLeft}m`;
+          return (
+            <Space direction="vertical" size={0}>
+              <span className="font-bold text-orange-500 text-xs">⏰ {formattedTime}</span>
+              <Tag color="warning" className="m-0 text-[9px] font-black border-none">
+                ⚠️ HỦY SAU {leftStr}
+              </Tag>
+            </Space>
+          );
+        }
+
+        return (
+          <Space direction="vertical" size={0}>
+            <span className="font-bold text-emerald-600 text-xs">⏰ {formattedTime}</span>
+          </Space>
+        );
+      }
+    },
+    {
       title: "Tổng tiền",
       dataIndex: "total_amount",
       key: "total_amount",
@@ -221,8 +277,41 @@ export default function CustomerOrders() {
     },
   ];
 
+  const upcomingOrders = useMemo(() => {
+    const now = dayjs();
+    return orders.filter((o) => {
+      if (!["pending", "confirmed"].includes(o.status) || !o.pickup_time) return false;
+      const pickupTime = dayjs(o.pickup_time);
+      const diffMins = pickupTime.diff(now, "minute");
+      return diffMins > 0 && diffMins <= 180; // Trong vòng 3 tiếng
+    });
+  }, [orders]);
+
   return (
     <div className="p-8 bg-[#f8fafb] min-h-screen">
+      {upcomingOrders.map((o) => {
+        const pickupTime = dayjs(o.pickup_time);
+        const cancelTime = pickupTime.subtract(1, "hour");
+        const diffMins = pickupTime.diff(dayjs(), "minute");
+        const hoursLeft = Math.floor(diffMins / 60);
+        const minsLeft = diffMins % 60;
+        return (
+          <Card key={o.id} className="mb-6 border-none bg-orange-50/70 rounded-[24px] shadow-sm p-4">
+            <Space direction="vertical" className="w-full" size="small">
+              <span className="text-orange-700 font-black italic uppercase text-xs block">
+                ⏱️ Cảnh báo: Sắp đến giờ hẹn lấy đồ ăn/nước uống (Mã đơn: {o.order_code})
+              </span>
+              <span className="text-slate-700 text-sm font-bold block">
+                Chỉ còn <span className="text-orange-600 font-black text-base">{hoursLeft > 0 ? `${hoursLeft}h${minsLeft}m` : `${minsLeft}m`}</span> nữa là đến giờ hẹn lấy hàng của bạn (lúc {pickupTime.format("HH:mm")}). Vui lòng sắp xếp thời gian đến quầy nhận món.
+              </span>
+              <span className="text-red-600 text-xs italic font-black block">
+                * Lưu ý: Đơn hàng sẽ bị hệ thống tự động hủy lúc {cancelTime.format("HH:mm DD/MM")} (trước giờ hẹn 1 tiếng) nếu bạn không đến thanh toán và nhận đồ tại quầy.
+              </span>
+            </Space>
+          </Card>
+        );
+      })}
+
       <div className="flex items-center justify-between mb-8">
         <Title
           level={2}

@@ -93,6 +93,41 @@ export default function PitchBookingDetail() {
           </div>
         </div>
 
+        {/* Cảnh báo thời gian và quy định hủy */}
+        {["pending", "approved", "confirmed"].includes(booking.status) && (() => {
+          const startDateTime = dayjs(`${booking.booking_date} ${booking.start_time}`);
+          const now = dayjs();
+          const diffMins = startDateTime.diff(now, "minute");
+          const cancelTime = startDateTime.subtract(6, "hour");
+
+          return (
+            <div className="mb-8 p-6 bg-red-50/70 border border-red-100 rounded-[32px] space-y-3 shadow-sm">
+              <div className="flex items-center gap-2 text-red-700 font-black italic uppercase text-sm">
+                <InfoCircleOutlined className="text-xl" /> Hướng dẫn & Quy định nhận sân
+              </div>
+
+              {diffMins > 0 && diffMins <= 60 && (
+                <div className="p-3 bg-red-600 rounded-2xl text-white font-black text-xs animate-pulse">
+                  ⚠️ SÂN BÓNG CỦA BẠN SẼ BẮT ĐẦU SAU {diffMins} PHÚT NỮA! Vui lòng có mặt đúng giờ để nhận sân.
+                </div>
+              )}
+
+              <ul className="text-slate-600 text-xs font-semibold italic space-y-2 pl-4 list-disc m-0">
+                {/* @ts-ignore */}
+                {booking.payment_status === "partial_paid" && (
+                  <li>
+                    Đơn cọc 30% của bạn cần thanh toán đủ 70% còn lại trước giờ thi đấu ít nhất 6 tiếng. 
+                    Hệ thống sẽ <strong>tự động hủy sân và giữ cọc</strong> vào lúc <strong>{cancelTime.format("HH:mm DD/MM/YYYY")}</strong> nếu chưa đóng đủ tiền.
+                  </li>
+                )}
+                <li>
+                  Nếu trễ quá giờ bóng lăn <strong>{startDateTime.format("HH:mm")}</strong> mà bạn chưa đến nhận sân/thanh toán tại quầy, lượt đặt sân sẽ bị <strong>tự động hủy</strong> để nhường cho khách hàng khác.
+                </li>
+              </ul>
+            </div>
+          );
+        })()}
+
         {/* Thanh trạng thái rực rỡ */}
         {booking.status !== "cancelled" && (
           <Card className="mb-8 border-none shadow-sm rounded-[32px] overflow-hidden">

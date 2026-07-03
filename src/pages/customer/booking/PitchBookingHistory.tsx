@@ -186,6 +186,16 @@ export default function PitchBookingHistory() {
     });
   }, [bookings, searchText, statusFilter]);
 
+  const upcomingBookings = useMemo(() => {
+    const now = dayjs();
+    return bookings.filter((b) => {
+      if (!["pending", "approved"].includes(b.status)) return false;
+      const startDateTime = dayjs(`${b.booking_date} ${b.start_time}`);
+      const diffMins = startDateTime.diff(now, "minute");
+      return diffMins > 0 && diffMins <= 60; // Trong vòng 1 tiếng
+    });
+  }, [bookings]);
+
   return (
     <div className="p-8 bg-[#f8fafb] min-h-screen">
       <div className="max-w-6xl mx-auto">
@@ -193,6 +203,34 @@ export default function PitchBookingHistory() {
           <HistoryOutlined className="text-emerald-500 mr-3" /> Lịch sử 
           <span className="text-emerald-500"> đặt sân của bạn</span>
         </Title>
+
+        {upcomingBookings.map((b) => {
+          const startDateTime = dayjs(`${b.booking_date} ${b.start_time}`);
+          const diffMins = startDateTime.diff(dayjs(), "minute");
+          const cancelTime = startDateTime.subtract(6, "hour");
+          return (
+            <Card key={b.id} className="mb-6 border-none bg-red-50/70 rounded-[24px] shadow-sm p-4">
+              <Space direction="vertical" className="w-full" size="small">
+                <span className="text-red-700 font-black italic uppercase text-xs block">
+                  ⚠️ Cảnh báo: Trận đấu sắp bắt đầu (Mã đặt sân #{b.id})
+                </span>
+                <span className="text-slate-700 text-sm font-bold block">
+                  Sân của bạn tại <span className="text-blue-600 uppercase italic">{b.field?.name || `Sân #${b.field_id}`}</span> sẽ bắt đầu sau <span className="text-red-600 font-black text-base">{diffMins} phút</span> nữa (lúc {startDateTime.format("HH:mm")}). Vui lòng có mặt đúng giờ để nhận sân.
+                </span>
+                {b.payment_status === "partial_paid" && (
+                  <span className="text-red-600 text-xs italic font-black block">
+                    * Lưu ý: Đơn cọc 30% sẽ tự động hủy vào lúc {cancelTime.format("HH:mm DD/MM")} (6 tiếng trước giờ đá) nếu chưa thanh toán đủ 70% còn lại.
+                  </span>
+                )}
+                {b.payment_status === "unpaid" && (
+                  <span className="text-red-600 text-xs italic font-black block">
+                    * Lưu ý: Lượt đặt chưa thanh toán sẽ tự động hủy nếu bạn trễ giờ đá {startDateTime.format("HH:mm")}.
+                  </span>
+                )}
+              </Space>
+            </Card>
+          );
+        })}
 
         <Card className="shadow-2xl border-none rounded-[32px] overflow-hidden">
           <div className="flex flex-wrap justify-between items-center gap-4 mb-6 bg-gray-50/50 p-6 rounded-2xl">

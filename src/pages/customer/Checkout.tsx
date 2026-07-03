@@ -41,6 +41,7 @@ interface OrderInfo {
   phone: string;
   email?: string;
   notes?: string;
+  pickupTime?: string;
 }
 
 const BANK_CONFIG = {
@@ -57,7 +58,7 @@ const Checkout: React.FC = () => {
 
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<"qr" | "cash">("qr");
+  const [paymentMethod, setPaymentMethod] = useState<"qr" | "cash">("cash");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [orderId, setOrderId] = useState<string>("");
   const [orderInfoState, setOrderInfoState] = useState<OrderInfo | null>(null);
@@ -67,7 +68,7 @@ const Checkout: React.FC = () => {
 
   const steps = [
     { title: "Thông tin", icon: <UserOutlined /> },
-    { title: "Thanh toán", icon: <CreditCardOutlined /> },
+    { title: "Xác nhận", icon: <CreditCardOutlined /> },
     { title: "Hoàn tất", icon: <CheckCircleOutlined /> },
   ];
 
@@ -157,6 +158,7 @@ const Checkout: React.FC = () => {
         notes: info.notes,
         payment_method: method,
         total_amount: total,
+        pickup_time: info.pickupTime ? info.pickupTime.replace("T", " ") : undefined,
         items: cartItems.map((item) => ({
           id: item.id,
           name: item.name,
@@ -210,36 +212,10 @@ const Checkout: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    if (currentStep === 1 && paymentMethod === "qr" && orderInfoState) {
-      pollingRef.current = setInterval(async () => {
-        try {
-          const response = await checkoutService.checkPaymentStatus(
-            orderId,
-            total,
-          );
-          if (response.data && response.data.status === "paid") {
-            if (pollingRef.current) {
-              clearInterval(pollingRef.current);
-              pollingRef.current = null;
-            }
-            await saveOrderToDatabase(orderInfoState, "qr");
-            message.success("Hệ thống nhận tiền thành công!");
-          }
-        } catch (error: unknown) {
-          console.warn("Đang đợi tiền về túi rực rỡ... ⚽");
-        }
-      }, 3000);
-    }
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, [currentStep, paymentMethod, orderId, orderInfoState, total]);
-
   const handleInfoSubmit = (values: OrderInfo) => {
     setOrderInfoState(values);
     setCurrentStep(1);
-    message.success("Mời bro quét mã thanh toán!");
+    message.success("Vui lòng xác nhận thông tin đặt hàng!");
   };
 
   const handleManualConfirmCash = async () => {
@@ -493,6 +469,69 @@ const Checkout: React.FC = () => {
                     />
                   </Form.Item>
                   <Form.Item
+                    name="pickupTime"
+                    label={
+                      <span className="font-black uppercase italic text-[10px] text-gray-400">
+                        Thời gian đến lấy nước / đồ ăn *
+                      </span>
+                    }
+                    rules={[
+                      {
+                        required: true,
+                        message: "Bro vui lòng chọn thời gian đến lấy để shop chuẩn bị nhé!",
+                      },
+                      {
+                        validator: (_, value) => {
+                          if (!value) return Promise.resolve();
+                          const dateObj = new Date(value);
+                          const selectedTime = dateObj.getTime();
+                          const now = Date.now();
+
+                          // 1. Kiểm tra thời gian trong quá khứ
+                          if (selectedTime < now) {
+                            return Promise.reject(
+                              new Error("Thời gian đến lấy không được ở trong quá khứ, bro ơi!")
+                            );
+                          }
+
+                          // 2. Kiểm tra khoảng cách tối thiểu 2 tiếng
+                          const minAllowedTime = now + 2 * 60 * 60 * 1000;
+                          if (selectedTime < minAllowedTime) {
+                            return Promise.reject(
+                              new Error("Thời gian đến lấy phải cách hiện tại ít nhất 2 tiếng để shop kịp chuẩn bị!")
+                            );
+                          }
+
+                          // 3. Kiểm tra giờ mở cửa/đóng cửa (04:00 AM - 23:30 PM)
+                          const hours = dateObj.getHours();
+                          const minutes = dateObj.getMinutes();
+                          const timeInMinutes = hours * 60 + minutes;
+                          const minOpeningMinutes = 4 * 60; // 04:00 AM
+                          const maxOpeningMinutes = 23 * 60 + 30; // 23:30 PM
+
+                          if (timeInMinutes < minOpeningMinutes || timeInMinutes > maxOpeningMinutes) {
+                            return Promise.reject(
+                              new Error("Cửa hàng chỉ hỗ trợ lấy đồ từ 04:00 AM đến 23:30 PM thôi bro nhé!")
+                            );
+                          }
+
+                          return Promise.resolve();
+                        },
+                      },
+                    ]}
+                  >
+                    <Input
+                      type="datetime-local"
+                      className="rounded-xl h-12 font-bold"
+                      min={(() => {
+                        const tzoffset = (new Date()).getTimezoneOffset() * 60000;
+                        return new Date(Date.now() + 2 * 60 * 60 * 1000 - tzoffset)
+                          .toISOString()
+                          .slice(0, 16);
+                      })()}
+                    />
+                  </Form.Item>
+                  <Form.Item
                     name="notes"
                     label={
                       <span className="font-black uppercase italic text-[10px] text-gray-400">
@@ -502,7 +541,7 @@ const Checkout: React.FC = () => {
                   >
                     <TextArea
                       rows={3}
-                      placeholder="Ghi chú thêm (ví dụ: giao giờ hành chính...)"
+                      placeholder="Ghi chú thêm (ví dụ: không lấy đá...)"
                       className="rounded-xl font-bold"
                     />
                   </Form.Item>
@@ -513,74 +552,48 @@ const Checkout: React.FC = () => {
                     block
                     className="h-16 rounded-[24px] bg-emerald-600 font-black italic uppercase shadow-lg hover:scale-[1.02] transition-transform"
                   >
-                    Tiếp tục thanh toán
+                    Tiếp tục xác nhận
                   </Button>
                 </Form>
               </Card>
             )}
             {currentStep === 1 && (
               <div className="space-y-6">
-                <Card className="shadow-2xl border-none rounded-[32px] p-8">
+                <Card className="shadow-2xl border-none rounded-[32px] p-8 bg-white">
                   <Title
                     level={4}
-                    className="!font-black !italic !uppercase !text-slate-800 mb-8"
+                    className="!font-black !italic !uppercase !text-slate-800 mb-6"
                   >
-                    <CreditCardOutlined className="text-blue-500 mr-2" /> Phương
-                    thức thanh toán
+                    <CreditCardOutlined className="text-blue-500 mr-2" /> Xác nhận đặt hàng
                   </Title>
-                  <Radio.Group
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full"
-                  >
-                    <Space
-                      direction="vertical"
-                      className="w-full"
-                      size="middle"
-                    >
-                      <Radio
-                        value="qr"
-                        className={`w-full p-6 border-2 rounded-[24px] ${
-                          paymentMethod === "qr"
-                            ? "border-emerald-500 bg-emerald-50/20"
-                            : "border-gray-50"
-                        }`}
-                      >
-                        <Space>
-                          <QrcodeOutlined className="text-2xl text-emerald-500" />{" "}
-                          <Text className="font-black italic uppercase">
-                            VietQR (Tự động chốt đơn)
-                          </Text>
-                        </Space>
-                      </Radio>
-                      <Radio
-                        value="cash"
-                        className={`w-full p-6 border-2 rounded-[24px] ${
-                          paymentMethod === "cash"
-                            ? "border-orange-500 bg-orange-50/20"
-                            : "border-gray-50"
-                        }`}
-                      >
-                        <Space>
-                          <WalletOutlined className="text-2xl text-orange-500" />{" "}
-                          <Text className="font-black italic uppercase">
-                            Tiền mặt tại quầy
-                          </Text>
-                        </Space>
-                      </Radio>
-                    </Space>
-                  </Radio.Group>
+                  <div className="p-6 bg-orange-50/50 border border-dashed border-orange-200 rounded-[24px] space-y-4">
+                    <div className="flex items-center gap-3 text-orange-600">
+                      <WalletOutlined className="text-3xl" />
+                      <span className="font-black italic uppercase text-base">
+                        Thanh toán tại quầy
+                      </span>
+                    </div>
+                    <p className="text-slate-600 text-sm font-medium italic leading-relaxed m-0">
+                      Đơn hàng sản phẩm của bro sẽ được nhân viên chuẩn bị sẵn sàng và thanh toán trực tiếp khi bro đến nhận đồ tại quầy.
+                    </p>
+                    {orderInfoState?.pickupTime && (
+                      <div className="pt-4 border-t border-orange-100/50 flex flex-col md:flex-row md:justify-between md:items-center gap-2">
+                        <span className="text-[10px] font-black uppercase italic text-slate-400">
+                          Hẹn giờ đến lấy:
+                        </span>
+                        <span className="text-emerald-700 font-black italic text-base bg-emerald-50 px-4 py-1.5 rounded-xl border border-emerald-100">
+                          ⏰ {new Date(orderInfoState.pickupTime).toLocaleString("vi-VN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </Card>
-                {paymentMethod === "qr" ? (
-                  renderQRSection()
-                ) : (
-                  <Card className="text-center shadow-xl border-none rounded-[32px] p-10 bg-white">
-                    <WalletOutlined className="text-6xl text-orange-400 mb-4" />
-                    <Title level={4} className="font-black italic uppercase">
-                      Thanh toán tại quầy
-                    </Title>
-                  </Card>
-                )}
                 <div className="flex gap-4">
                   <Button
                     size="large"
@@ -589,17 +602,15 @@ const Checkout: React.FC = () => {
                   >
                     Quay lại
                   </Button>
-                  {paymentMethod === "cash" && (
-                    <Button
-                      type="primary"
-                      size="large"
-                      onClick={handleManualConfirmCash}
-                      loading={isProcessing}
-                      className="flex-[2] h-16 rounded-2xl bg-emerald-600 font-black italic uppercase"
-                    >
-                      Xác nhận đơn hàng
-                    </Button>
-                  )}
+                  <Button
+                    type="primary"
+                    size="large"
+                    onClick={handleManualConfirmCash}
+                    loading={isProcessing}
+                    className="flex-[2] h-16 rounded-2xl bg-emerald-600 font-black italic uppercase"
+                  >
+                    Xác nhận đặt hàng
+                  </Button>
                 </div>
               </div>
             )}

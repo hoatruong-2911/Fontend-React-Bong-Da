@@ -31,6 +31,7 @@ export interface Order {
     | "completed" // Hoàn thành
     | "cancelled"; // Đã hủy
   created_at: string;
+  pickup_time?: string;
   items?: OrderItem[];
 }
 

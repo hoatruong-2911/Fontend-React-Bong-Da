@@ -181,10 +181,10 @@ export default function ProductDetail() {
     : `${STORAGE_URL}${product.image?.replace(/^\//, "")}`;
 
   return (
-    <div className="min-h-screen bg-[#fcfdfe] pb-24 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-[#fcfdfe] pb-16 md:pb-24 animate-in fade-in duration-700">
       {/* Breadcrumb Section với hiệu ứng Gradient nhẹ */}
       <div className="bg-gradient-to-r from-white via-[#f0f9f6] to-white border-b border-gray-100 shadow-sm">
-        <div className="container mx-auto px-6 py-5 max-w-7xl">
+        <div className="container mx-auto px-4 md:px-6 py-3 md:py-4 max-w-7xl">
           <Breadcrumb
             separator=">"
             items={[
@@ -220,37 +220,37 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-10 max-w-7xl">
+      <div className="container mx-auto px-4 md:px-6 py-6 md:py-10 max-w-7xl">
         <Button
           icon={<ArrowLeftOutlined />}
           onClick={() => navigate("/products")}
-          className="mb-8 rounded-2xl font-bold border-none bg-white shadow-lg hover:shadow-emerald-100 hover:text-emerald-600 px-6 h-12 flex items-center transition-all"
+          className="mb-4 md:mb-6 rounded-xl font-bold border-none bg-white shadow-md hover:shadow-emerald-50 hover:text-emerald-600 px-5 h-10 flex items-center transition-all"
         >
           Quay lại cửa hàng
         </Button>
 
-        <Row gutter={[64, 64]}>
+        <Row gutter={[24, 24]}>
           {/* CỘT ẢNH: Nổi khối và rực rỡ hơn */}
           <Col xs={24} md={11}>
             <div className="sticky top-10 group">
-              <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-400 to-cyan-400 rounded-[50px] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-              <Card className="relative border-0 shadow-2xl rounded-[48px] overflow-hidden p-8 bg-white">
-                <div className="aspect-square flex items-center justify-center bg-gradient-to-b from-[#fafcfb] to-white rounded-[36px] overflow-hidden p-6">
+              <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-400 to-cyan-400 rounded-3xl md:rounded-[40px] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+              <Card className="relative border-0 shadow-xl rounded-3xl md:rounded-[36px] overflow-hidden bg-white">
+                <div className="aspect-square w-full relative bg-[#fafcfb] flex items-center justify-center overflow-hidden">
                   <Image
                     src={imageUrl}
                     alt={product.name}
-                    className="max-w-full max-h-[550px] object-contain drop-shadow-2xl transition-transform duration-700 hover:scale-110"
+                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
                     preview={{
                       mask: (
-                        <div className="flex flex-col items-center font-black italic uppercase text-lg">
-                          <ThunderboltOutlined className="text-3xl mb-2" />{" "}
+                        <div className="flex flex-col items-center font-black italic uppercase text-lg text-white">
+                          <ThunderboltOutlined className="text-3xl mb-2 text-emerald-400" />{" "}
                           Phóng to cực phẩm
                         </div>
                       ),
                     }}
                   />
                 </div>
-                <div className="mt-6 flex justify-center">
+                <div className="py-4 flex justify-center bg-white border-t border-gray-50">
                   <div className="px-4 py-1 bg-emerald-50 rounded-full border border-emerald-100 text-[10px] font-black italic text-emerald-600 uppercase tracking-tighter">
                     Hình ảnh thực tế từ Stadium Store
                   </div>
@@ -262,26 +262,19 @@ export default function ProductDetail() {
           {/* CỘT THÔNG TIN: Typo mạnh mẽ, phân cấp rõ ràng */}
           <Col xs={24} md={13}>
             <div className="space-y-8">
-              <AntdSpace size="middle">
-                <Tag
-                  color="green"
-                  className="rounded-xl px-5 py-1 font-black uppercase italic border-none shadow-md bg-gradient-to-r from-emerald-500 to-teal-500 text-white m-0"
-                >
+              <div className="flex flex-wrap gap-3">
+                <span className="rounded-xl px-5 py-2 font-black uppercase italic text-xs shadow-md bg-gradient-to-r from-emerald-600 to-teal-500 text-white leading-none">
                   {product.category}
-                </Tag>
-                <Tag
-                  color="orange"
-                  icon={<FireOutlined />}
-                  className="rounded-xl px-5 py-1 font-black uppercase italic border-none shadow-md bg-gradient-to-r from-orange-500 to-yellow-500 text-white m-0"
-                >
-                  HOT DEAL
-                </Tag>
-              </AntdSpace>
+                </span>
+                <span className="rounded-xl px-5 py-2 font-black uppercase italic text-xs shadow-md bg-gradient-to-r from-orange-600 to-amber-500 text-white leading-none flex items-center gap-1">
+                  <FireOutlined className="text-[11px]" /> HOT DEAL
+                </span>
+              </div>
 
               <div>
                 <Title
                   level={1}
-                  className="!text-6xl !font-black !text-slate-900 !uppercase !italic !tracking-tighter !leading-[1.1] !mb-4"
+                  className="!text-3xl md:!text-4xl lg:!text-5xl !font-black !text-slate-900 !uppercase !italic !tracking-tighter !leading-[1.15] !mb-3"
                 >
                   {product.name}
                 </Title>
@@ -305,40 +298,40 @@ export default function ProductDetail() {
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-10 rounded-[40px] shadow-2xl shadow-emerald-200 relative overflow-hidden group">
-                <div className="absolute -right-10 -top-10 opacity-10 text-[120px] text-white font-black italic rotate-12 group-hover:rotate-0 transition-transform duration-1000">
+              <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 md:p-8 rounded-3xl shadow-xl shadow-emerald-100 relative overflow-hidden group">
+                <div className="absolute -right-10 -top-10 opacity-10 text-[80px] md:text-[120px] text-white font-black italic rotate-12 group-hover:rotate-0 transition-transform duration-1000">
                   BEST
                 </div>
                 <div className="relative z-10 flex flex-col">
-                  <Text className="text-emerald-100 font-black italic uppercase text-xs tracking-[0.3em] mb-2">
+                  <Text className="text-emerald-100 font-black italic uppercase text-[10px] tracking-[0.3em] mb-1">
                     Giá ưu đãi hôm nay
                   </Text>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-7xl font-black text-white italic drop-shadow-lg tracking-tighter">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl md:text-5xl lg:text-6xl font-black text-white italic drop-shadow-lg tracking-tighter">
                       {product.price.toLocaleString("vi-VN")}đ
                     </span>
-                    <span className="text-emerald-200/70 text-2xl font-black italic uppercase">
+                    <span className="text-emerald-200/70 text-lg md:text-xl font-black italic uppercase">
                       / {product.unit}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="p-8 bg-white rounded-[32px] shadow-xl shadow-gray-100/50 border border-gray-50 relative">
-                <div className="absolute top-0 left-10 transform -translate-y-1/2 bg-white px-4 py-1 rounded-full border border-gray-100 shadow-sm">
-                  <h3 className="font-black uppercase italic text-emerald-600 m-0 text-xs flex items-center gap-2">
+              <div className="p-5 md:p-6 bg-white rounded-2xl md:rounded-[28px] shadow-lg shadow-gray-50 border border-gray-50 relative">
+                <div className="absolute top-0 left-6 transform -translate-y-1/2 bg-white px-3 py-0.5 rounded-full border border-gray-100 shadow-sm">
+                  <h3 className="font-black uppercase italic text-emerald-600 m-0 text-[10px] md:text-xs flex items-center gap-1.5">
                     <ThunderboltOutlined /> Đặc điểm nổi bật
                   </h3>
                 </div>
-                <p className="text-slate-600 italic leading-relaxed text-xl font-medium">
+                <p className="text-slate-600 italic leading-relaxed text-base md:text-lg font-medium">
                   {product.description ||
                     "Hương vị đẳng cấp, nguyên liệu tinh tuyển mang lại trải nghiệm ẩm thực rực rỡ nhất tại Stadium POS. Đảm bảo gây nghiện ngay lần đầu thưởng thức."}
                 </p>
               </div>
 
-              <div className="flex items-center justify-between p-6 bg-[#fcfdfe] rounded-[28px] border border-dashed border-emerald-200">
+              <div className="flex items-center justify-between p-4 md:p-5 bg-[#fcfdfe] rounded-2xl border border-dashed border-emerald-200 gap-4">
                 <div className="flex flex-col">
-                  <span className="font-black uppercase italic text-slate-400 text-[10px] mb-2 tracking-widest">
+                  <span className="font-black uppercase italic text-slate-400 text-[9px] mb-1.5 tracking-widest">
                     Tùy chọn số lượng
                   </span>
                   <InputNumber
@@ -347,66 +340,65 @@ export default function ProductDetail() {
                     value={quantity}
                     onChange={(v) => setQuantity(v || 1)}
                     size="large"
-                    className="w-40 rounded-2xl border-none shadow-inner font-black text-lg h-14 flex items-center bg-gray-100/50"
+                    className="w-32 md:w-40 rounded-xl md:rounded-2xl border-none shadow-inner font-black text-base md:text-lg h-10 md:h-12 flex items-center bg-gray-100/50"
                   />
                 </div>
                 <div className="text-right">
                   <Tag
                     color="success"
-                    className="rounded-full px-5 py-1 font-black italic border-none shadow-sm mb-2"
+                    className="rounded-full px-4 py-0.5 font-black italic border-none shadow-sm mb-1 text-[10px] md:text-xs"
                   >
                     CÒN HÀNG
                   </Tag>
-                  <div className="text-emerald-600 font-black italic text-lg tracking-tighter">
+                  <div className="text-emerald-600 font-black italic text-sm md:text-lg tracking-tighter">
                     {product.stock} cực phẩm sẵn sàng
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-6 pt-4">
+              <div className="flex gap-4 pt-2">
                 <Button
                   type="primary"
                   size="large"
-                  icon={<ShoppingCartOutlined style={{ fontSize: "24px" }} />}
+                  icon={<ShoppingCartOutlined style={{ fontSize: "20px" }} />}
                   onClick={handleAddToCart}
-                  className="flex-[2] h-24 rounded-[30px] bg-gradient-to-r from-emerald-500 to-teal-600 border-none font-black italic uppercase shadow-2xl shadow-emerald-200 text-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center"
+                  className="flex-[2] h-14 md:h-16 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 border-none font-black italic uppercase shadow-lg shadow-emerald-100 text-lg md:text-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center"
                 >
                   Thêm vào giỏ
                 </Button>
                 <Button
                   size="large"
-                  // CẬP NHẬT: Gọi hàm handleBuyNow vừa viết ở trên
                   onClick={handleBuyNow}
-                  className="flex-1 h-24 rounded-[30px] bg-slate-900 text-white border-none font-black italic uppercase shadow-2xl shadow-slate-300 text-xl hover:bg-black hover:scale-[1.02] active:scale-95 transition-all"
+                  className="flex-1 h-14 md:h-16 rounded-2xl bg-slate-900 text-white border-none font-black italic uppercase shadow-lg shadow-slate-300 text-sm md:text-base hover:bg-black hover:scale-[1.02] active:scale-95 transition-all"
                 >
                   Mua ngay
                 </Button>
               </div>
 
               {/* PHẦN CAM KẾT TIN TƯỞNG - Rực rỡ hơn */}
-              <div className="grid grid-cols-2 gap-6 pt-4">
-                <div className="p-5 rounded-[28px] bg-white border border-emerald-50 shadow-lg shadow-gray-100/50 flex items-center gap-4 group hover:bg-emerald-50 transition-colors duration-500">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg shadow-emerald-100 group-hover:rotate-12 transition-transform">
-                    <SafetyCertificateOutlined className="text-2xl" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-white border border-emerald-50 shadow-md flex items-center gap-3 group hover:bg-emerald-50 transition-colors duration-500">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-md group-hover:rotate-12 transition-transform">
+                    <SafetyCertificateOutlined className="text-xl" />
                   </div>
                   <div>
-                    <div className="font-black italic uppercase text-xs text-slate-800">
+                    <div className="font-black italic uppercase text-[11px] text-slate-800">
                       Cam kết 100%
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
                       Sạch - Tươi - Đỉnh
                     </div>
                   </div>
                 </div>
-                <div className="p-5 rounded-[28px] bg-white border border-blue-50 shadow-lg shadow-gray-100/50 flex items-center gap-4 group hover:bg-blue-50 transition-colors duration-500">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-100 group-hover:rotate-12 transition-transform">
-                    <TruckOutlined className="text-2xl" />
+                <div className="p-4 rounded-2xl bg-white border border-blue-50 shadow-md flex items-center gap-3 group hover:bg-blue-50 transition-colors duration-500">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-md group-hover:rotate-12 transition-transform">
+                    <TruckOutlined className="text-xl" />
                   </div>
                   <div>
-                    <div className="font-black italic uppercase text-xs text-slate-800">
+                    <div className="font-black italic uppercase text-[11px] text-slate-800">
                       Giao thần tốc
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
                       5-10 Phút nhận hàng
                     </div>
                   </div>
@@ -417,16 +409,16 @@ export default function ProductDetail() {
         </Row>
 
         {/* TAB CHI TIẾT - Custom lại style */}
-        <Card className="mt-24 border-0 shadow-2xl rounded-[48px] overflow-hidden bg-white p-4">
+        <Card className="mt-16 border-0 shadow-xl rounded-3xl md:rounded-[36px] overflow-hidden bg-white p-2 md:p-4">
           <Tabs
             defaultActiveKey="1"
             centered
-            className="px-8 pb-8 custom-modern-tabs"
+            className="px-4 md:px-8 pb-8 custom-modern-tabs"
             items={[
               {
                 key: "1",
                 label: (
-                  <span className="font-black uppercase italic px-10 text-xl tracking-widest py-4 block">
+                  <span className="font-black uppercase italic px-4 md:px-8 text-base md:text-lg tracking-widest py-3 block">
                     Thông số chi tiết
                   </span>
                 ),
@@ -476,7 +468,7 @@ export default function ProductDetail() {
               {
                 key: "2",
                 label: (
-                  <span className="font-black uppercase italic px-10 text-xl tracking-widest py-4 block">
+                  <span className="font-black uppercase italic px-4 md:px-8 text-base md:text-lg tracking-widest py-3 block">
                     Đánh giá khách hàng
                   </span>
                 ),
@@ -496,13 +488,13 @@ export default function ProductDetail() {
         </Card>
 
         {/* SẢN PHẨM LIÊN QUAN */}
-        <div className="mt-32">
-          <div className="flex items-end justify-between mb-12">
+        <div className="mt-16 md:mt-24">
+          <div className="flex items-end justify-between mb-8 md:mb-12">
             <div>
-              <h2 className="text-5xl font-black italic uppercase text-slate-900 m-0 tracking-tighter">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-black italic uppercase text-slate-900 m-0 tracking-tighter">
                 Có thể bạn sẽ thích
               </h2>
-              <div className="h-2 w-48 bg-emerald-500 mt-4 rounded-full shadow-lg shadow-emerald-100"></div>
+              <div className="h-1.5 w-32 bg-emerald-500 mt-3 rounded-full shadow-md shadow-emerald-50"></div>
             </div>
             <Button
               type="link"

@@ -23,6 +23,7 @@ export interface OrderRecord {
   payment_method: "qr" | "cash";
   notes?: string;
   pickup_address?: string;
+  pickup_time?: string;
   created_at: string;
   items: OrderItemDetail[];
 }

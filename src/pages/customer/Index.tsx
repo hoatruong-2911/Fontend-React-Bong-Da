@@ -19,6 +19,9 @@ import { Spin, message } from "antd";
 import { useNavigate } from "react-router-dom";
 import homeService, { Product } from "@/services/customer/HomeService";
 import { Field } from "@/services/customer/fieldService";
+import FieldCard from "@/components/customer/FieldCard";
+import ProductCard from "@/components/customer/ProductCard";
+import { Product as ProductType } from "@/services/customer/productService";
 // --- IMPORT ASSETS TĨNH ---
 import quangHai from "../../../assets/images/quang_hai.jpg";
 import congPhuong from "../../../assets/images/cong_phuong.jpg";
@@ -145,20 +148,18 @@ export const Home: React.FC = () => {
     fetchData();
   }, [fetchData]);
 
-  const handleAddToCart = (product: Product): void => {
-    const cartString = localStorage.getItem("cart");
-    const cart: CartItem[] = cartString ? JSON.parse(cartString) : [];
-
-    const existingIndex = cart.findIndex((item) => item.id === product.id);
-    if (existingIndex > -1) {
-      cart[existingIndex].quantity += 1;
-    } else {
-      cart.push({ ...product, quantity: 1 } as CartItem);
-    }
-
-    localStorage.setItem("cart", JSON.stringify(cart));
-    window.dispatchEvent(new Event("storage"));
+  const handleAddToCart = (product: any): void => {
     message.success(`Đã thêm ${product.name} vào giỏ rực rỡ!`);
+  };
+
+  const handleBuyNow = (product: any) => {
+    const mappedProduct = {
+      ...product,
+      category: typeof product.category === "object" ? product.category.name : product.category,
+      brand: typeof product.brand === "object" ? product.brand.name : product.brand,
+    };
+    const buyNowItem = { ...mappedProduct, quantity: 1 };
+    navigate("/checkout", { state: { buyNowItem } });
   };
 
   if (loading)
@@ -340,45 +341,9 @@ export const Home: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {apiFields.map((field) => (
-            <motion.div
-              key={field.id}
-              whileHover={{ y: -8 }}
-              className="bg-white rounded-[2.5rem] overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 group relative border border-emerald-50/50"
-            >
-              <div className="h-64 overflow-hidden relative">
-                <img
-                  src={
-                    field.image
-                      ? field.image.startsWith("http")
-                        ? field.image
-                        : `${STORAGE_URL}${field.image}`
-                      : `/field-images/${field.size}.jpg`
-                  }
-                  alt={field.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-                <div className="absolute top-5 left-5 bg-emerald-600 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md">
-                  Sân {field.size} người
-                </div>
-              </div>
-              <div className="p-8">
-                <h3 className="text-xl font-black text-emerald-950 mb-2 uppercase italic">
-                  {field.name}
-                </h3>
-                <p className="text-emerald-600 font-black text-xl mb-6">
-                  {Number(field.price).toLocaleString("vi-VN")}đ{" "}
-                  <span className="text-xs text-slate-400 font-normal">
-                    /giờ
-                  </span>
-                </p>
-                <button
-                  onClick={() => navigate(`/fields/${field.id}`)}
-                  className="w-full py-3.5 rounded-xl bg-emerald-900 text-white font-black hover:bg-emerald-600 transition-all uppercase tracking-wider text-xs shadow-md"
-                >
-                  Chi tiết đặt sân
-                </button>
-              </div>
-            </motion.div>
+            <div className="hover:scale-[1.03] transition-transform duration-500 h-full" key={field.id}>
+              <FieldCard field={field} />
+            </div>
           ))}
         </div>
       </section>
@@ -396,56 +361,17 @@ export const Home: React.FC = () => {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {apiProducts.map((product) => (
-              <motion.div
-                key={product.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                className="bg-white/5 border border-white/10 rounded-[2.5rem] p-6 group hover:bg-white/10 transition-all shadow-xl"
-              >
-                <div className="h-52 relative overflow-hidden rounded-[2rem] mb-6">
-                  <img
-                    src={
-                      product.image
-                        ? product.image.startsWith("http")
-                          ? product.image
-                          : `${STORAGE_URL}${product.image}`
-                        : ""
-                    }
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                </div>
-                <div className="mb-4">
-                  <span className="text-emerald-400 font-black uppercase tracking-widest text-[9px] block mb-1">
-                    {typeof product.category === "object"
-                      ? (product.category as { name: string }).name
-                      : product.category || "Sản phẩm"}
-                  </span>
-                  <h3 className="text-base font-black text-white line-clamp-1 uppercase italic">
-                    {product.name}
-                  </h3>
-                  <div className="text-xl font-black text-emerald-400 mt-1">
-                    {Number(product.price).toLocaleString("vi-VN")}đ
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-5 gap-2 pt-4 border-t border-white/10">
-                  <button
-                    onClick={() => navigate(`/products/${product.id}`)}
-                    className="col-span-2 bg-white/10 hover:bg-white/20 p-2.5 rounded-xl flex justify-center transition-all text-white border border-white/5 shadow-sm"
-                    title="Chi tiết"
-                  >
-                    <Eye size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleAddToCart(product)}
-                    className="col-span-3 bg-emerald-500 hover:bg-emerald-400 text-white p-2.5 rounded-xl font-black flex items-center justify-center gap-1.5 text-[9px] uppercase transition-all shadow-lg"
-                  >
-                    <ShoppingCart size={14} /> Thêm
-                  </button>
-                </div>
-              </motion.div>
+              <div key={product.id} className="hover:scale-[1.03] transition-transform duration-500 h-full">
+                <ProductCard
+                  product={{
+                    ...product,
+                    category: typeof product.category === "object" ? product.category.name : product.category,
+                    brand: typeof product.brand === "object" ? product.brand.name : product.brand,
+                  } as unknown as ProductType}
+                  onAddToCart={handleAddToCart}
+                  onBuyNow={handleBuyNow}
+                />
+              </div>
             ))}
           </div>
         </div>

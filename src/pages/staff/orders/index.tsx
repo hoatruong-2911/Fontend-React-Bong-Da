@@ -224,6 +224,66 @@ export default function StaffOrders() {
       ),
     },
     {
+      title: "HẸN GIỜ LẤY",
+      dataIndex: "pickup_time",
+      key: "pickup_time",
+      render: (time: string, record: Order) => {
+        if (!time) {
+          return <Text type="secondary" className="text-[9px] italic text-gray-300">Không hẹn</Text>;
+        }
+
+        const pickupDay = dayjs(time);
+        const now = dayjs();
+        const cancelTime = pickupDay.subtract(1, "hour");
+        const diffMinutes = cancelTime.diff(now, "minute");
+
+        const formattedTime = pickupDay.format("HH:mm DD/MM");
+
+        if (!["pending", "confirmed"].includes(record.status)) {
+          return (
+            <Space direction="vertical" size={0}>
+              <span className="font-bold text-slate-700 text-xs">⏰ {formattedTime}</span>
+            </Space>
+          );
+        }
+
+        if (diffMinutes <= 0) {
+          return (
+            <Space direction="vertical" size={0}>
+              <span className="font-bold text-red-500 text-xs">⏰ {formattedTime}</span>
+              <Tag color="red" className="m-0 text-[9px] font-black animate-pulse">
+                ⚠️ QUÁ HẠN (SẼ HỦY)
+              </Tag>
+            </Space>
+          );
+        }
+
+        if (diffMinutes <= 60) {
+          return (
+            <Space direction="vertical" size={0}>
+              <span className="font-bold text-orange-500 text-xs">⏰ {formattedTime}</span>
+              <Tag color="warning" className="m-0 text-[9px] font-black">
+                ⚠️ SẮP HỦY (CÒN {diffMinutes} PHÚT)
+              </Tag>
+            </Space>
+          );
+        }
+
+        const hoursLeft = Math.floor(dayjs(time).diff(now, "minute") / 60);
+        const minsLeft = dayjs(time).diff(now, "minute") % 60;
+        const timeStr = hoursLeft > 0 ? `${hoursLeft}h${minsLeft}m` : `${minsLeft}m`;
+
+        return (
+          <Space direction="vertical" size={0}>
+            <span className="font-bold text-emerald-600 text-xs">⏰ {formattedTime}</span>
+            <span className="text-[9px] text-gray-400 font-bold block">
+              ⏱️ Còn {timeStr}
+            </span>
+          </Space>
+        );
+      }
+    },
+    {
       title: "SẢN PHẨM",
       dataIndex: "items",
       render: (items: OrderItem[]) => (
@@ -435,6 +495,19 @@ export default function StaffOrders() {
               >
                 {dayjs(selectedOrder.created_at).format("DD/MM/YYYY HH:mm")}
               </Descriptions.Item>
+              {selectedOrder.pickup_time && (
+                <Descriptions.Item
+                  label={
+                    <span className="text-[10px] font-black italic">
+                      HẸN GIỜ LẤY
+                    </span>
+                  }
+                >
+                  <Text strong className="text-emerald-700 italic">
+                    ⏰ {dayjs(selectedOrder.pickup_time).format("DD/MM/YYYY HH:mm")}
+                  </Text>
+                </Descriptions.Item>
+              )}
               <Descriptions.Item
                 label={
                   <span className="text-[10px] font-black italic">

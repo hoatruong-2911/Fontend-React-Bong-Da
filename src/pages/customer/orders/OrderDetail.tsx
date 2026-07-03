@@ -123,6 +123,34 @@ export default function OrderDetail() {
           Quay lại danh sách
         </Button>
 
+        {/* Hướng dẫn & Quy định nhận đồ ăn/nước uống */}
+        {["pending", "confirmed"].includes(order.status) && order.pickup_time && (() => {
+          const pickupTime = dayjs(order.pickup_time);
+          const now = dayjs();
+          const cancelTime = pickupTime.subtract(1, "hour");
+          const diffMins = pickupTime.diff(now, "minute");
+          const hoursLeft = Math.floor(diffMins / 60);
+          const minsLeft = diffMins % 60;
+
+          return (
+            <div className="mb-6 p-6 bg-orange-50/70 border border-orange-100 rounded-[24px] space-y-2 shadow-sm">
+              <div className="flex items-center gap-2 text-orange-700 font-black italic uppercase text-xs">
+                <InfoCircleOutlined className="text-lg" /> Quy định nhận đồ hẹn trước
+              </div>
+              
+              {diffMins > 0 && diffMins <= 180 && (
+                <div className="p-3 bg-orange-600 rounded-2xl text-white font-black text-xs animate-pulse">
+                  ⚠️ CHỈ CÒN {hoursLeft > 0 ? `${hoursLeft}h${minsLeft}m` : `${minsLeft}m`} NỮA LÀ ĐẾN HẸN LẤY ĐỒ! Vui lòng sắp xếp nhận món đúng giờ.
+                </div>
+              )}
+
+              <div className="text-slate-600 text-xs font-semibold italic">
+                * Đơn đặt đồ ăn/nước uống sẽ bị hệ thống <strong>tự động hủy lúc {cancelTime.format("HH:mm DD/MM/YYYY")}</strong> (trước giờ hẹn lấy 1 tiếng) để bảo toàn kho hàng nếu bạn chưa đến nhận đồ và thanh toán tại quầy.
+              </div>
+            </div>
+          );
+        })()}
+
         <Card className="shadow-2xl border-none rounded-[32px] p-8 bg-white print-area overflow-hidden">
           <div className="flex justify-between items-start mb-10">
             <div>
@@ -178,9 +206,19 @@ export default function OrderDetail() {
                 color="cyan"
                 className="font-black italic uppercase border-none"
               >
-                {order.payment_method === "qr" ? "VietQR" : "Tiền mặt"}
+                {order.payment_method === "qr" ? "VietQR" : "Tiền mặt tại quầy"}
               </Tag>
             </Descriptions.Item>
+            {order.pickup_time && (
+              <Descriptions.Item label="Hẹn giờ lấy" span={2}>
+                <Tag
+                  color="processing"
+                  className="font-black italic uppercase border-none text-emerald-600 bg-emerald-50 px-3 py-1 rounded"
+                >
+                  ⏰ {dayjs(order.pickup_time).format("HH:mm DD/MM/YYYY")}
+                </Tag>
+              </Descriptions.Item>
+            )}
             {order.notes && (
               <Descriptions.Item
                 label="Ghi chú"

@@ -112,36 +112,36 @@ export default function FieldDetail() {
   if (!field || field.id === 0) return null;
 
   return (
-    <div className="min-h-screen bg-[#fcfdfe] pb-24 animate-in fade-in duration-700">
+    <div className="min-h-screen bg-[#fcfdfe] pb-16 md:pb-24 animate-in fade-in duration-700">
       {/* Header Điều hướng */}
       <div className="bg-gradient-to-r from-white via-[#f0f9f6] to-white border-b border-gray-100 shadow-sm">
-        <div className="container mx-auto px-6 py-8 max-w-7xl">
+        <div className="container mx-auto px-4 md:px-6 py-4 md:py-6 max-w-7xl">
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate("/fields")}
-            className="rounded-2xl font-bold border-none bg-white shadow-lg hover:shadow-emerald-100 hover:text-emerald-600 px-6 h-12 flex items-center transition-all"
+            className="rounded-xl font-bold border-none bg-white shadow-md hover:shadow-emerald-50 hover:text-emerald-600 px-5 h-10 flex items-center transition-all"
           >
             Quay lại danh sách sân
           </Button>
         </div>
       </div>
 
-      <div className="container mx-auto px-6 py-10 max-w-7xl">
-        <Row gutter={[64, 64]}>
+      <div className="container mx-auto px-4 md:px-6 py-6 md:py-10 max-w-7xl">
+        <Row gutter={[24, 24]}>
           {/* CỘT ẢNH SÂN BÓNG */}
           <Col xs={24} md={11}>
             <div className="sticky top-10 group">
-              <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-400 to-cyan-400 rounded-[50px] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-              <Card className="relative border-0 shadow-2xl rounded-[48px] overflow-hidden p-8 bg-white">
-                <div className="aspect-video flex items-center justify-center bg-gradient-to-b from-[#fafcfb] to-white rounded-[36px] overflow-hidden">
+              <div className="absolute -inset-1 bg-gradient-to-tr from-emerald-400 to-cyan-400 rounded-3xl md:rounded-[40px] blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+              <Card className="relative border-0 shadow-xl rounded-3xl md:rounded-[36px] overflow-hidden p-4 md:p-6 bg-white">
+                <div className="aspect-video flex items-center justify-center bg-gradient-to-b from-[#fafcfb] to-white rounded-2xl md:rounded-3xl overflow-hidden">
                   <Image
                     src={field.image || `/field-images/${field.size}.jpg`}
                     alt={field.name}
-                    className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                    className="w-full h-full object-cover max-h-[300px] md:max-h-[400px] transition-transform duration-700 hover:scale-105"
                     preview={{
                       mask: (
-                        <div className="flex flex-col items-center font-black italic uppercase text-lg">
-                          <ThunderboltOutlined className="text-3xl mb-2" /> Soi
+                        <div className="flex flex-col items-center font-black italic uppercase text-base md:text-lg">
+                          <ThunderboltOutlined className="text-2xl md:text-3xl mb-1.5" /> Soi
                           chi tiết mặt sân
                         </div>
                       ),
@@ -172,7 +172,7 @@ export default function FieldDetail() {
               <div>
                 <Title
                   level={1}
-                  className="!text-6xl !font-black !text-slate-900 !uppercase !italic !tracking-tighter !leading-[1.1] !mb-4"
+                  className="!text-3xl md:!text-4xl lg:!text-5xl !font-black !text-slate-900 !uppercase !italic !tracking-tighter !leading-[1.15] !mb-3"
                 >
                   SÂN {field.name}
                 </Title>
@@ -196,19 +196,19 @@ export default function FieldDetail() {
               </div>
 
               {/* Box Giá tiền rực rỡ */}
-              <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-10 rounded-[40px] shadow-2xl shadow-emerald-200 relative overflow-hidden group">
-                <div className="absolute -right-10 -top-10 opacity-10 text-[120px] text-white font-black italic rotate-12 group-hover:rotate-0 transition-transform duration-1000">
+              <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-6 md:p-8 rounded-3xl shadow-xl shadow-emerald-100 relative overflow-hidden group">
+                <div className="absolute -right-10 -top-10 opacity-10 text-[80px] md:text-[120px] text-white font-black italic rotate-12 group-hover:rotate-0 transition-transform duration-1000">
                   FIELD
                 </div>
                 <div className="relative z-10">
-                  <Text className="text-emerald-100 font-black italic uppercase text-xs tracking-[0.3em] mb-2 block">
+                  <Text className="text-emerald-100 font-black italic uppercase text-[10px] tracking-[0.3em] mb-1 block">
                     Giá thuê sân tiêu chuẩn
                   </Text>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-7xl font-black text-white italic drop-shadow-lg tracking-tighter">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl md:text-5xl lg:text-6xl font-black text-white italic drop-shadow-lg tracking-tighter">
                       {field.price.toLocaleString("vi-VN")}đ
                     </span>
-                    <span className="text-emerald-200/70 text-2xl font-black italic uppercase">
+                    <span className="text-emerald-200/70 text-lg md:text-xl font-black italic uppercase">
                       / giờ
                     </span>
                   </div>
@@ -216,27 +216,27 @@ export default function FieldDetail() {
               </div>
 
               {/* Mô tả sân bóng */}
-              <div className="p-8 bg-white rounded-[32px] shadow-xl shadow-gray-100/50 border border-gray-50 relative">
-                <div className="absolute top-0 left-10 transform -translate-y-1/2 bg-white px-4 py-1 rounded-full border border-gray-100 shadow-sm">
-                  <h3 className="font-black uppercase italic text-emerald-600 m-0 text-xs flex items-center gap-2">
+              <div className="p-5 md:p-6 bg-white rounded-2xl md:rounded-[28px] shadow-lg shadow-gray-50 border border-gray-50 relative">
+                <div className="absolute top-0 left-6 transform -translate-y-1/2 bg-white px-3 py-0.5 rounded-full border border-gray-100 shadow-sm">
+                  <h3 className="font-black uppercase italic text-emerald-600 m-0 text-[10px] md:text-xs flex items-center gap-1.5">
                     <ThunderboltOutlined /> Giới thiệu sân đấu
                   </h3>
                 </div>
-                <p className="text-slate-600 italic leading-relaxed text-xl font-medium">
+                <p className="text-slate-600 italic leading-relaxed text-base md:text-lg font-medium">
                   {field.description ||
                     "Trải nghiệm không gian thi đấu đẳng cấp chuyên nghiệp với mặt cỏ FIFA chất lượng cao, hệ thống đèn LED chống lóa rực rỡ nhất khu vực."}
                 </p>
               </div>
 
               {/* Tiện ích sân bóng Grid */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {STATIC_FEATURES.map((feat, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center gap-3 p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100"
+                    className="flex items-center gap-2.5 p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-100"
                   >
-                    <CheckCircleOutlined className="text-emerald-500 text-lg" />
-                    <span className="font-bold italic uppercase text-slate-700 text-xs tracking-wider">
+                    <CheckCircleOutlined className="text-emerald-500 text-base" />
+                    <span className="font-bold italic uppercase text-slate-700 text-[10px] md:text-xs tracking-wider">
                       {feat}
                     </span>
                   </div>
@@ -244,43 +244,43 @@ export default function FieldDetail() {
               </div>
 
               {/* Nút Đặt sân */}
-              <div className="flex gap-6 pt-4">
+              <div className="flex gap-4 pt-2">
                 <Button
                   type="primary"
                   size="large"
-                  icon={<TrophyOutlined style={{ fontSize: "24px" }} />}
+                  icon={<TrophyOutlined style={{ fontSize: "20px" }} />}
                   onClick={handleBook}
                   disabled={!field.available}
-                  className="flex-1 h-24 rounded-[30px] bg-gradient-to-r from-emerald-500 to-teal-600 border-none font-black italic uppercase shadow-2xl shadow-emerald-200 text-2xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center"
+                  className="flex-1 h-14 md:h-16 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 border-none font-black italic uppercase shadow-lg shadow-emerald-100 text-lg md:text-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center"
                 >
                   {field.available ? "Đặt sân ngay" : "Sân đã kín lịch"}
                 </Button>
               </div>
 
               {/* Cam kết tin tưởng */}
-              <div className="grid grid-cols-2 gap-6 pt-4">
-                <div className="p-5 rounded-[28px] bg-white border border-emerald-50 shadow-lg shadow-gray-100/50 flex items-center gap-4 group hover:bg-emerald-50 transition-colors">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white shadow-lg">
-                    <SafetyCertificateOutlined className="text-2xl" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-white border border-emerald-50 shadow-md flex items-center gap-3 group hover:bg-emerald-50 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white shadow-md">
+                    <SafetyCertificateOutlined className="text-xl" />
                   </div>
                   <div>
-                    <div className="font-black italic uppercase text-xs text-slate-800">
+                    <div className="font-black italic uppercase text-[11px] text-slate-800">
                       Cọc 30% giữ sân
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
                       An toàn & Minh bạch
                     </div>
                   </div>
                 </div>
-                <div className="p-5 rounded-[28px] bg-white border border-blue-50 shadow-lg shadow-gray-100/50 flex items-center gap-4 group hover:bg-blue-50 transition-colors">
-                  <div className="w-12 h-12 rounded-2xl bg-blue-500 flex items-center justify-center text-white shadow-lg">
-                    <ClockCircleOutlined className="text-2xl" />
+                <div className="p-4 rounded-2xl bg-white border border-blue-50 shadow-md flex items-center gap-3 group hover:bg-blue-50 transition-colors">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center text-white shadow-md">
+                    <ClockCircleOutlined className="text-xl" />
                   </div>
                   <div>
-                    <div className="font-black italic uppercase text-xs text-slate-800">
+                    <div className="font-black italic uppercase text-[11px] text-slate-800">
                       Hỗ trợ đổi lịch
                     </div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase">
+                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
                       Trước 4h thi đấu
                     </div>
                   </div>
@@ -291,13 +291,13 @@ export default function FieldDetail() {
         </Row>
 
         {/* PHẦN SÂN BÓNG LIÊN QUAN - ĐÚNG CHẤT SẢN PHẨM */}
-        <div className="mt-32">
-          <div className="flex items-end justify-between mb-12">
+        <div className="mt-16 md:mt-24">
+          <div className="flex items-end justify-between mb-8 md:mb-12">
             <div>
-              <h2 className="text-5xl font-black italic uppercase text-slate-900 m-0 tracking-tighter">
+              <h2 className="text-2xl md:text-3xl lg:text-4xl font-black italic uppercase text-slate-900 m-0 tracking-tighter">
                 Sân bóng cùng quy mô
               </h2>
-              <div className="h-2 w-48 bg-emerald-500 mt-4 rounded-full shadow-lg shadow-emerald-100"></div>
+              <div className="h-1.5 w-32 bg-emerald-500 mt-3 rounded-full shadow-md shadow-emerald-50"></div>
             </div>
             <Button
               type="link"

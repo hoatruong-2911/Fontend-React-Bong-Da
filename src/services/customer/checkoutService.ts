@@ -17,6 +17,7 @@ export interface StoreOrderData {
   notes?: string;
   payment_method: "qr" | "cash";
   total_amount: number;
+  pickup_time?: string;
   items: CartItem[];
 }
 
